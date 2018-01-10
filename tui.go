@@ -23,6 +23,8 @@ type DasView struct {
 	top  int
 	cur  int
 	off  int64
+	raw  bool
+	miw  int // max insn width
 	line []interface{}
 	msg  func(interface{}) string
 }
@@ -41,12 +43,20 @@ func funcMsg(arg interface{}) string {
 }
 
 func insnMsg(arg interface{}) string {
+	var ls string
+
 	dl := arg.(*DasLine)
-	ls := fmt.Sprintf("  %4x:  %-7s   %s",
-		dl.offset-cv.off, dl.mnemonic, dl.args)
-	if len(dl.comment) > 0 {
-		ls += "   # "
-		ls += dl.comment
+	if cv.raw {
+		ls = fmt.Sprintf("  %4x:  %-*s   %s",
+			dl.offset, cv.miw, dl.opcode, dl.rawline)
+	} else {
+		ls = fmt.Sprintf("  %4x:  %-7s   %s",
+			dl.offset-cv.off, dl.mnemonic, dl.args)
+
+		if len(dl.comment) > 0 {
+			ls += "   # "
+			ls += dl.comment
+		}
 	}
 
 	return ls
@@ -283,6 +293,28 @@ func ShowTUI(file_name string) {
 			return
 		}
 		cv = fv
+		resize(cv)
+		tui.Render(cv)
+	})
+
+	tui.Handle("/sys/kbd/v", func(tui.Event) {
+		if cv != iv {
+			return
+		}
+
+		// toggle to show raw opcode
+		cv.raw = !cv.raw
+
+		if cv.raw {
+			cv.miw = 0
+			for _, ln := range cv.line {
+				insn := ln.(*DasLine)
+				if len(insn.opcode) > cv.miw {
+					cv.miw = len(insn.opcode)
+				}
+			}
+		}
+
 		resize(cv)
 		tui.Render(cv)
 	})
