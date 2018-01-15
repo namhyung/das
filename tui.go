@@ -27,10 +27,20 @@ type DasView struct {
 	miw  int // max insn width
 	line []interface{}
 	msg  func(interface{}) string
+	stat func(interface{}) string
+}
+
+type DasStatus struct {
+	tui.Block // embedded
+
+	fg   tui.Attribute
+	bg   tui.Attribute
+	line string
 }
 
 var (
-	cv *DasView // current viewer
+	cv *DasView   // current viewer
+	sl *DasStatus // status line
 )
 
 func funcMsg(arg interface{}) string {
@@ -60,6 +70,20 @@ func insnMsg(arg interface{}) string {
 	}
 
 	return ls
+}
+
+func funcStat(arg interface{}) string {
+	df := arg.(*DasFunc)
+	if df.sect {
+		return "section: " + df.name
+	} else {
+		return fmt.Sprintf("function: %s", df.name)
+	}
+}
+
+func insnStat(arg interface{}) string {
+	dl := arg.(*DasLine)
+	return "instruction: " + dl.mnemonic
 }
 
 func (dv *DasView) Buffer() tui.Buffer {
@@ -109,10 +133,36 @@ func (dv *DasView) Buffer() tui.Buffer {
 		y++
 
 		if y == dv.Height-2 {
-			return buf
+			break
 		}
 	}
 
+	sl.line = dv.stat(dv.line[dv.cur])
+	return buf
+}
+
+func (ds *DasStatus) Buffer() tui.Buffer {
+	buf := ds.Block.Buffer()
+
+	cs := tui.DefaultTxBuilder.Build(ds.line, ds.fg, ds.bg)
+	cs = tui.DTrimTxCls(cs, ds.Block.Width)
+
+	x := 0
+	for _, vv := range cs {
+		w := vv.Width()
+		buf.Set(x, ds.Y, vv)
+		x += w
+	}
+
+	// fill status line to the end
+	cs = tui.DefaultTxBuilder.Build(" ", ds.fg, ds.bg)
+	for x < ds.Width {
+		for _, vv := range cs {
+			w := vv.Width()
+			buf.Set(x, ds.Y, vv)
+			x += w
+		}
+	}
 	return buf
 }
 
@@ -188,7 +238,16 @@ func pageDown(dv *DasView) {
 
 func resize(dv *DasView) {
 	dv.Width = tui.TermWidth()
-	dv.Height = tui.TermHeight()
+	dv.Height = tui.TermHeight() - 1
+
+	sl.Width = tui.TermWidth()
+	sl.Height = 1
+	sl.Y = tui.TermHeight() - 1
+}
+
+func render(dv *DasView) {
+	tui.Render(dv) // it will update the status line (sl)
+	tui.Render(sl)
 }
 
 func ShowTUI(file_name string) {
@@ -205,6 +264,7 @@ func ShowTUI(file_name string) {
 		fg_focus:  tui.ColorYellow,
 		bg_focus:  tui.ColorBlue,
 		msg:       funcMsg,
+		stat:      funcStat,
 	}
 
 	fv.line = make([]interface{}, len(funcs))
@@ -220,13 +280,21 @@ func ShowTUI(file_name string) {
 		fg_focus:  tui.ColorYellow,
 		bg_focus:  tui.ColorBlue,
 		msg:       insnMsg,
+		stat:      insnStat,
 	}
 
 	fv.BorderLabel = "DAS: " + file_name
 
+	// status line
+	sl = &DasStatus{
+		Block: *tui.NewBlock(),
+		fg:    tui.ColorBlack,
+		bg:    tui.ColorWhite,
+	}
+
 	cv = fv
 	resize(cv)
-	tui.Render(cv)
+	render(cv)
 
 	// handle key pressing
 	tui.Handle("/sys/kbd/q", func(tui.Event) {
@@ -241,27 +309,27 @@ func ShowTUI(file_name string) {
 
 	tui.Handle("/sys/kbd/<up>", func(tui.Event) {
 		up(cv)
-		tui.Render(cv)
+		render(cv)
 	})
 
 	tui.Handle("/sys/kbd/<down>", func(tui.Event) {
 		down(cv)
-		tui.Render(cv)
+		render(cv)
 	})
 
 	tui.Handle("/sys/kbd/<previous>", func(e tui.Event) {
 		pageUp(cv)
-		tui.Render(cv)
+		render(cv)
 	})
 
 	tui.Handle("/sys/kbd/<next>", func(e tui.Event) {
 		pageDown(cv)
-		tui.Render(cv)
+		render(cv)
 	})
 
 	tui.Handle("/sys/wnd/resize", func(tui.Event) {
 		resize(cv)
-		tui.Render(cv)
+		render(cv)
 	})
 
 	tui.Handle("/sys/kbd/<enter>", func(tui.Event) {
@@ -284,7 +352,7 @@ func ShowTUI(file_name string) {
 
 			cv = iv
 			resize(cv)
-			tui.Render(cv)
+			render(cv)
 		}
 	})
 
@@ -294,7 +362,7 @@ func ShowTUI(file_name string) {
 		}
 		cv = fv
 		resize(cv)
-		tui.Render(cv)
+		render(cv)
 	})
 
 	tui.Handle("/sys/kbd/v", func(tui.Event) {
@@ -316,7 +384,7 @@ func ShowTUI(file_name string) {
 		}
 
 		resize(cv)
-		tui.Render(cv)
+		render(cv)
 	})
 
 	tui.Loop()
