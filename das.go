@@ -45,6 +45,41 @@ var (
 	funcs []*DasFunc
 )
 
+func parseInsn(df *DasFunc, dl *DasLine, raw_line string) {
+	dl.rawline = raw_line
+
+	tmp := str.SplitN(raw_line, " ", 2)
+	dl.mnemonic = tmp[0]
+	if len(tmp) == 1 {
+		return
+	}
+
+	dl.args = str.TrimSpace(tmp[1])
+
+	if str.Index(dl.args, "#") != -1 {
+		tmp = str.Split(dl.args, "#")
+		dl.args = str.TrimSpace(tmp[0])
+		dl.comment = str.TrimSpace(tmp[1])
+	}
+
+	if str.HasPrefix(dl.mnemonic, "j") ||
+		str.HasPrefix(dl.mnemonic, "call") {
+		dl.optype = OPTYPE_BRANCH
+		tmp = str.Split(dl.args, " ")
+		if len(tmp) == 2 {
+			dl.target, _ = scv.ParseInt(tmp[0], 16, 64)
+			dl.args = tmp[1]
+
+			// if it's a jump in a same function, just save the offset
+			if str.HasPrefix(dl.args, df.name[0:len(df.name)-1]) &&
+				(dl.args[len(df.name)-1] == '+' ||
+					dl.args[len(df.name)-1] == '>') {
+				dl.args = fmt.Sprintf("%#x", dl.target-df.start)
+			}
+		}
+	}
+}
+
 func parseFunction(b *bytes.Buffer, name, offset string) *DasFunc {
 	var err error
 	df := new(DasFunc)
@@ -80,32 +115,7 @@ func parseFunction(b *bytes.Buffer, name, offset string) *DasFunc {
 		dl.opcode = insn_arr[1]
 
 		if len(insn_arr) > 2 {
-			dl.rawline = insn_arr[2]
-
-			tmp := str.SplitN(insn_arr[2], " ", 2)
-			dl.mnemonic = tmp[0]
-			if len(tmp) == 1 {
-				df.insn = append(df.insn, dl)
-				continue
-			}
-
-			dl.args = str.TrimSpace(tmp[1])
-
-			if str.Index(dl.args, "#") != -1 {
-				tmp = str.Split(dl.args, "#")
-				dl.args = str.TrimSpace(tmp[0])
-				dl.comment = str.TrimSpace(tmp[1])
-			}
-
-			if str.HasPrefix(dl.mnemonic, "j") ||
-				str.HasPrefix(dl.mnemonic, "call") {
-				dl.optype = OPTYPE_BRANCH
-				tmp = str.Split(dl.args, " ")
-				if len(tmp) == 2 {
-					dl.target, err = scv.ParseInt(tmp[0], 16, 64)
-					dl.args = tmp[1]
-				}
-			}
+			parseInsn(df, dl, insn_arr[2])
 
 			df.insn = append(df.insn, dl)
 		} else {
