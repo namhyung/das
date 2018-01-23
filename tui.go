@@ -83,7 +83,13 @@ func funcStat(arg interface{}) string {
 
 func insnStat(arg interface{}) string {
 	dl := arg.(*DasLine)
-	return "instruction: " + dl.mnemonic
+	desc := LookupInsn(dl.mnemonic)
+
+	if len(desc) > 0 {
+		return fmt.Sprintf("%s: %s (%s)", "instruction", dl.mnemonic, desc)
+	} else {
+		return "instruction: " + dl.mnemonic
+	}
 }
 
 func (dv *DasView) Buffer() tui.Buffer {
