@@ -10,6 +10,8 @@ package main
 import (
 	"fmt"
 	tui "github.com/gizak/termui"
+	scv "strconv"
+	str "strings"
 )
 
 type DasView struct {
@@ -20,15 +22,17 @@ type DasView struct {
 	fg_focus  tui.Attribute
 	bg_focus  tui.Attribute
 
-	top  int
-	cur  int
-	off  int64
-	raw  bool
-	miw  int // max insn width
-	mow  int // max opcode width
-	line []interface{}
-	msg  func(interface{}) string
-	stat func(interface{}) string
+	top   int
+	cur   int
+	off   int64
+	insn  bool
+	raw   bool
+	arrow bool
+	miw   int // max insn width
+	mow   int // max opcode width
+	line  []interface{}
+	msg   func(interface{}) string
+	stat  func(interface{}) string
 }
 
 type DasStatus struct {
@@ -61,12 +65,31 @@ func insnMsg(arg interface{}) string {
 	var ls string
 
 	dl := arg.(*DasLine)
+
+	arw := "   "
+	if cv.arrow {
+		jmp := cv.line[cv.cur].(*DasLine)
+
+		target, _ := scv.ParseInt(jmp.args, 0, 64)
+		target += cv.off
+
+		if dl.offset == jmp.offset {
+			arw = "+--"
+		} else if dl.offset == target {
+			arw = "+->"
+		} else if jmp.offset < dl.offset && dl.offset < target {
+			arw = "|  "
+		} else if target < dl.offset && dl.offset < jmp.offset {
+			arw = "|  "
+		}
+	}
+
 	if cv.raw {
-		ls = fmt.Sprintf("  %4x:  %-*s   %s",
-			dl.offset, cv.mow, dl.opcode, dl.rawline)
+		ls = fmt.Sprintf(" %s %4x:  %-*s   %s",
+			arw, dl.offset, cv.mow, dl.opcode, dl.rawline)
 	} else {
-		ls = fmt.Sprintf("  %4x:  %-*s   %s",
-			dl.offset-cv.off, cv.miw, dl.mnemonic, dl.args)
+		ls = fmt.Sprintf(" %s %4x:  %-*s   %s",
+			arw, dl.offset-cv.off, cv.miw, dl.mnemonic, dl.args)
 
 		if len(dl.comment) > 0 {
 			ls += "   # "
@@ -331,6 +354,18 @@ func rawMode(dv *DasView) {
 	}
 }
 
+func arrowMode(dv *DasView) {
+	dv.arrow = false
+	if !dv.insn {
+		return
+	}
+
+	dl := dv.line[dv.cur].(*DasLine)
+	if str.HasPrefix(dl.mnemonic, "j") && str.HasPrefix(dl.args, "0x") {
+		dv.arrow = true
+	}
+}
+
 func resize(dv *DasView) {
 	dv.Width = tui.TermWidth()
 	dv.Height = tui.TermHeight() - 1
@@ -341,6 +376,7 @@ func resize(dv *DasView) {
 }
 
 func render(dv *DasView) {
+	arrowMode(dv)
 	tui.Render(dv) // it will update the status line (sl)
 	tui.Render(sl)
 }
@@ -374,6 +410,7 @@ func ShowTUI(file_name string) {
 		bg_normal: tui.ColorBlack,
 		fg_focus:  tui.ColorYellow,
 		bg_focus:  tui.ColorBlue,
+		insn:      true,
 		msg:       insnMsg,
 		stat:      insnStat,
 	}
@@ -434,21 +471,16 @@ func ShowTUI(file_name string) {
 	})
 
 	tui.Handle("/sys/kbd/<escape>", func(tui.Event) {
-		if cv != iv {
-			return
-		}
 		cv = fv
 		resize(cv)
 		render(cv)
 	})
 
 	tui.Handle("/sys/kbd/v", func(tui.Event) {
-		if cv != iv {
-			return
+		if cv.insn {
+			rawMode(cv)
 		}
 
-		rawMode(cv)
-		resize(cv)
 		render(cv)
 	})
 
