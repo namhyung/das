@@ -434,16 +434,33 @@ func enter(fv, iv *DasView) {
 		// move to a different function if it's call or return
 		ln := iv.line[iv.cur].(*DasLine)
 
-		if str.HasPrefix(ln.mnemonic, "ret") {
+		if ln.optype == OPTYPE_OTHER {
+			return
+		}
+
+		if ln.optype == OPTYPE_RETURN {
 			pop(fv, iv)
 			return
 		}
 
-		if !str.HasPrefix(ln.mnemonic, "call") &&
-			!str.HasPrefix(ln.mnemonic, "jmp") {
+		// for OPTYPE_BRANCH
+		if ln.local {
+			for {
+				if ln.target > ln.offset {
+					down(cv)
+				} else {
+					up(cv)
+				}
+
+				t := iv.line[iv.cur].(*DasLine)
+				if t.offset == ln.target {
+					break
+				}
+			}
 			return
 		}
 
+		// function call
 		fun, top, idx := find(fv, ln.args)
 		if fun != nil {
 			h := history[len(history)-1]

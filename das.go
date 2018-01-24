@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	OPTYPE_OTHER  = 0
-	OPTYPE_BRANCH = 1
+	OPTYPE_OTHER = iota
+	OPTYPE_BRANCH
+	OPTYPE_RETURN
 )
 
 type DasLine struct {
@@ -30,6 +31,7 @@ type DasLine struct {
 	opcode   string // []uint8
 	mnemonic string
 	args     string
+	local    bool  // only for OPTYPE_BRANCH
 	target   int64 // only for OPTYPE_BRANCH
 	comment  string
 }
@@ -52,6 +54,11 @@ func parseInsn(df *DasFunc, dl *DasLine, raw_line string) {
 
 	tmp := str.SplitN(raw_line, " ", 2)
 	dl.mnemonic = tmp[0]
+
+	if str.HasPrefix(dl.mnemonic, "ret") {
+		dl.optype = OPTYPE_RETURN
+	}
+
 	if len(tmp) == 1 {
 		return
 	}
@@ -67,6 +74,7 @@ func parseInsn(df *DasFunc, dl *DasLine, raw_line string) {
 	if str.HasPrefix(dl.mnemonic, "j") ||
 		str.HasPrefix(dl.mnemonic, "call") {
 		dl.optype = OPTYPE_BRANCH
+
 		tmp = str.Split(dl.args, " ")
 		if len(tmp) == 2 {
 			dl.target, _ = scv.ParseInt(tmp[0], 16, 64)
@@ -77,6 +85,7 @@ func parseInsn(df *DasFunc, dl *DasLine, raw_line string) {
 				(dl.args[len(df.name)-1] == '+' ||
 					dl.args[len(df.name)-1] == '>') {
 				dl.args = fmt.Sprintf("%#x", dl.target-df.start)
+				dl.local = true
 			}
 		}
 	}
