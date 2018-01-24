@@ -25,6 +25,7 @@ type DasView struct {
 	off  int64
 	raw  bool
 	miw  int // max insn width
+	mow  int // max opcode width
 	line []interface{}
 	msg  func(interface{}) string
 	stat func(interface{}) string
@@ -62,10 +63,10 @@ func insnMsg(arg interface{}) string {
 	dl := arg.(*DasLine)
 	if cv.raw {
 		ls = fmt.Sprintf("  %4x:  %-*s   %s",
-			dl.offset, cv.miw, dl.opcode, dl.rawline)
+			dl.offset, cv.mow, dl.opcode, dl.rawline)
 	} else {
-		ls = fmt.Sprintf("  %4x:  %-7s   %s",
-			dl.offset-cv.off, dl.mnemonic, dl.args)
+		ls = fmt.Sprintf("  %4x:  %-*s   %s",
+			dl.offset-cv.off, cv.miw, dl.mnemonic, dl.args)
 
 		if len(dl.comment) > 0 {
 			ls += "   # "
@@ -174,6 +175,22 @@ func (ds *DasStatus) Buffer() tui.Buffer {
 		}
 	}
 	return buf
+}
+
+func update(dv *DasView) {
+	// update max insn/opcode width
+	dv.miw = 0
+	dv.mow = 0
+
+	for _, ln := range dv.line {
+		insn := ln.(*DasLine)
+		if len(insn.opcode) > dv.mow {
+			dv.mow = len(insn.opcode)
+		}
+		if len(insn.mnemonic) > dv.miw {
+			dv.miw = len(insn.mnemonic)
+		}
+	}
 }
 
 func up(dv *DasView) {
@@ -298,7 +315,19 @@ func enter(fv, iv *DasView) {
 			iv.line[i] = l
 		}
 
+		if iv.raw {
+			update(iv)
+		}
 		cv = iv
+	}
+}
+
+func rawMode(dv *DasView) {
+	// toggle to show raw opcode
+	dv.raw = !dv.raw
+
+	if dv.raw {
+		update(dv)
 	}
 }
 
@@ -418,19 +447,7 @@ func ShowTUI(file_name string) {
 			return
 		}
 
-		// toggle to show raw opcode
-		cv.raw = !cv.raw
-
-		if cv.raw {
-			cv.miw = 0
-			for _, ln := range cv.line {
-				insn := ln.(*DasLine)
-				if len(insn.opcode) > cv.miw {
-					cv.miw = len(insn.opcode)
-				}
-			}
-		}
-
+		rawMode(cv)
 		resize(cv)
 		render(cv)
 	})
