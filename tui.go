@@ -295,6 +295,20 @@ func pageDown(dv *DasView) {
 	}
 }
 
+func home(dv *DasView) {
+	dv.top = 0
+	dv.cur = 0
+}
+
+func end(dv *DasView) {
+	dv.cur = len(dv.line) - 1
+	dv.top = dv.cur - dv.Height + 3
+
+	if dv.top < 0 {
+		dv.top = 0
+	}
+}
+
 func toggle(f *DasFunc) {
 	// toggle folding state
 	f.fold = !f.fold
@@ -613,6 +627,16 @@ func ShowTUI(file_name string) {
 
 	tui.Handle("/sys/kbd/<next>", func(e tui.Event) {
 		pageDown(cv)
+		render(cv)
+	})
+
+	tui.Handle("/sys/kbd/<home>", func(e tui.Event) {
+		home(cv)
+		render(cv)
+	})
+
+	tui.Handle("/sys/kbd/<end>", func(e tui.Event) {
+		end(cv)
 		render(cv)
 	})
 
