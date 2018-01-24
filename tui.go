@@ -287,11 +287,61 @@ func pageDown(dv *DasView) {
 }
 
 func enter(fv, iv *DasView) {
-	if cv != fv {
+	if cv.insn {
+		// move to a different function if it's call
+		ln := iv.line[iv.cur].(*DasLine)
+		if !str.HasPrefix(ln.mnemonic, "call") &&
+			!str.HasPrefix(ln.mnemonic, "jmp") {
+			return
+		}
+
+		skip := false
+		sect := 0
+
+		for i, f := range funcs {
+			if f.sect {
+				sect = i
+				skip = f.fold
+			}
+
+			if f.name != ln.args {
+				continue
+			}
+
+			// update function index
+			if skip {
+				// if it's skipped, use section index instead
+				i = sect
+			}
+
+			if i+fv.Height-2 >= len(fv.line) {
+				i = len(fv.line) - fv.Height-2
+
+				if i < 0 {
+					i = 0
+				}
+			}
+			fv.top = i
+			fv.cur = i
+
+			// switch to instruction view
+			iv.top = 0
+			iv.cur = 0
+			iv.off = f.start
+			iv.BorderLabel = f.name
+
+			iv.line = make([]interface{}, len(f.insn))
+			for i, l := range f.insn {
+				iv.line[i] = l
+			}
+
+			update(iv)
+			break;
+		}
 		return
 	}
 
-	f, _ := fv.line[fv.cur].(*DasFunc)
+	f := fv.line[fv.cur].(*DasFunc)
 	if f.sect {
 		// toggle folding state
 		f.fold = !f.fold
@@ -338,9 +388,7 @@ func enter(fv, iv *DasView) {
 			iv.line[i] = l
 		}
 
-		if iv.raw {
-			update(iv)
-		}
+		update(iv)
 		cv = iv
 	}
 }
@@ -348,10 +396,6 @@ func enter(fv, iv *DasView) {
 func rawMode(dv *DasView) {
 	// toggle to show raw opcode
 	dv.raw = !dv.raw
-
-	if dv.raw {
-		update(dv)
-	}
 }
 
 func arrowMode(dv *DasView) {
