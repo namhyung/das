@@ -43,9 +43,18 @@ type DasStatus struct {
 	line string
 }
 
+type DasHist struct {
+	fun  *DasFunc
+	ftop int // fv.top
+	fcur int // fv.cur
+	itop int // iv.top
+	icur int // iv.cur
+}
+
 var (
-	cv *DasView   // current viewer
-	sl *DasStatus // status line
+	cv      *DasView   // current viewer
+	sl      *DasStatus // status line
+	history []*DasHist
 )
 
 func funcMsg(arg interface{}) string {
@@ -286,116 +295,188 @@ func pageDown(dv *DasView) {
 	}
 }
 
+func toggle(f *DasFunc) {
+	// toggle folding state
+	f.fold = !f.fold
+
+	// count entries again
+	c := 0
+	for _, f2 := range funcs {
+		if f2.sect {
+			if !f2.fold {
+				c += int(f2.start)
+			}
+			c++
+		}
+	}
+
+	// rebuild function list
+	line := make([]interface{}, c)
+
+	i := 0
+	skip := false
+
+	for _, f2 := range funcs {
+		// section is always added
+		if f2.sect {
+			line[i] = f2
+			i++
+			skip = f2.fold
+		} else if !skip {
+			line[i] = f2
+			i++
+		}
+	}
+
+	cv.line = line
+}
+
+// return index of the given function
+func find(dv *DasView, name string) (*DasFunc, int, int) {
+	skip := false
+	sect := 0
+	hide := 0 // hidden functions due to foding
+	tmp := 0  // functions in the current section
+
+	for i, f := range funcs {
+		if f.sect {
+			// keep hidden
+			hide += tmp
+			sect = i
+			skip = f.fold
+
+			if skip {
+				tmp = int(f.start)
+			} else {
+				tmp = 0
+			}
+			continue
+		}
+
+		if f.name != name {
+			continue
+		}
+
+		// update function index
+		if skip {
+			// if it's skipped, use section index instead
+			i = sect
+		}
+
+		// count alread skipped sections
+		i -= hide
+
+		t := i
+		if i+dv.Height-2 >= len(dv.line) {
+			t = len(dv.line) - dv.Height + 3
+
+			if t < 0 {
+				t = 0
+			}
+		}
+		return f, t, i
+	}
+	return nil, -1, -1
+}
+
+// push current function to the history
+func push(fun *DasFunc, top, cur int, fv, iv *DasView) {
+	history = append(history, &DasHist{fun, top, cur, 0, 0})
+
+	fv.top = top
+	fv.cur = cur
+
+	iv.top = 0
+	iv.cur = 0
+	iv.off = fun.start
+	iv.BorderLabel = fun.name
+
+	iv.line = make([]interface{}, len(fun.insn))
+	for i, l := range fun.insn {
+		iv.line[i] = l
+	}
+
+	update(iv)
+	cv = iv
+}
+
+// pop function from the history
+func pop(fv, iv *DasView) {
+	history = history[:len(history)-1]
+
+	if len(history) == 0 {
+		// switch to function view
+		cv = fv
+		resize(fv)
+		return
+	}
+
+	h := history[len(history)-1]
+
+	fv.top = h.ftop
+	fv.cur = h.fcur
+
+	iv.top = h.itop
+	iv.cur = h.icur
+	iv.off = h.fun.start
+	iv.BorderLabel = h.fun.name
+
+	iv.line = make([]interface{}, len(h.fun.insn))
+	for i, l := range h.fun.insn {
+		iv.line[i] = l
+	}
+
+	update(iv)
+}
+
 func enter(fv, iv *DasView) {
 	if cv.insn {
-		// move to a different function if it's call
+		// move to a different function if it's call or return
 		ln := iv.line[iv.cur].(*DasLine)
+
+		if str.HasPrefix(ln.mnemonic, "ret") {
+			pop(fv, iv)
+			return
+		}
+
 		if !str.HasPrefix(ln.mnemonic, "call") &&
 			!str.HasPrefix(ln.mnemonic, "jmp") {
 			return
 		}
 
-		skip := false
-		sect := 0
+		fun, top, idx := find(fv, ln.args)
+		if fun != nil {
+			h := history[len(history)-1]
+			// save current index
+			h.itop = iv.top
+			h.icur = iv.cur
 
-		for i, f := range funcs {
-			if f.sect {
-				sect = i
-				skip = f.fold
-			}
-
-			if f.name != ln.args {
-				continue
-			}
-
-			// update function index
-			if skip {
-				// if it's skipped, use section index instead
-				i = sect
-			}
-
-			if i+fv.Height-2 >= len(fv.line) {
-				i = len(fv.line) - fv.Height-2
-
-				if i < 0 {
-					i = 0
-				}
-			}
-			fv.top = i
-			fv.cur = i
-
-			// switch to instruction view
-			iv.top = 0
-			iv.cur = 0
-			iv.off = f.start
-			iv.BorderLabel = f.name
-
-			iv.line = make([]interface{}, len(f.insn))
-			for i, l := range f.insn {
-				iv.line[i] = l
-			}
-
-			update(iv)
-			break;
+			push(fun, top, idx, fv, iv)
 		}
 		return
 	}
 
 	f := fv.line[fv.cur].(*DasFunc)
 	if f.sect {
-		// toggle folding state
-		f.fold = !f.fold
-
-		// count entries again
-		c := 0
-		for _, f2 := range funcs {
-			if f2.sect {
-				if !f2.fold {
-					c += int(f2.start)
-				}
-				c++
-			}
-		}
-
-		// rebuild function list
-		line := make([]interface{}, c)
-
-		i := 0
-		skip := false
-
-		for _, f2 := range funcs {
-			// section is always added
-			if f2.sect {
-				line[i] = f2
-				i++
-				skip = f2.fold
-			} else if !skip {
-				line[i] = f2
-				i++
-			}
-		}
-
-		fv.line = line
+		toggle(f)
 	} else {
 		// switch to instruction view
-		iv.top = 0
-		iv.cur = 0
-		iv.off = f.start
-		iv.BorderLabel = f.name
+		push(f, fv.top, fv.cur, fv, iv)
+		resize(iv)
+	}
+}
 
-		iv.line = make([]interface{}, len(f.insn))
-		for i, l := range f.insn {
-			iv.line[i] = l
-		}
-
-		update(iv)
-		cv = iv
+func escape(fv, iv *DasView) {
+	if len(history) > 0 {
+		pop(fv, iv)
 	}
 }
 
 func rawMode(dv *DasView) {
-	// toggle to show raw opcode
-	dv.raw = !dv.raw
+	if dv.insn {
+		// toggle to show raw opcode
+		dv.raw = !dv.raw
+	}
 }
 
 func arrowMode(dv *DasView) {
@@ -510,21 +591,16 @@ func ShowTUI(file_name string) {
 
 	tui.Handle("/sys/kbd/<enter>", func(tui.Event) {
 		enter(fv, iv)
-		resize(cv)
 		render(cv)
 	})
 
 	tui.Handle("/sys/kbd/<escape>", func(tui.Event) {
-		cv = fv
-		resize(cv)
+		escape(fv, iv)
 		render(cv)
 	})
 
 	tui.Handle("/sys/kbd/v", func(tui.Event) {
-		if cv.insn {
-			rawMode(cv)
-		}
-
+		rawMode(cv)
 		render(cv)
 	})
 
