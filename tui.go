@@ -46,7 +46,11 @@ var (
 func funcMsg(arg interface{}) string {
 	df := arg.(*DasFunc)
 	if df.sect {
-		return "section: " + df.name
+		fold_sign := "-"
+		if df.fold {
+			fold_sign = "+"
+		}
+		return fmt.Sprintf("%s section: %s", fold_sign, df.name)
 	} else {
 		return fmt.Sprintf("   %x: %s", df.start, df.name)
 	}
@@ -75,7 +79,7 @@ func insnMsg(arg interface{}) string {
 func funcStat(arg interface{}) string {
 	df := arg.(*DasFunc)
 	if df.sect {
-		return "section: " + df.name
+		return fmt.Sprintf("section: %s (%d functions)", df.name, df.start)
 	} else {
 		return fmt.Sprintf("function: %s", df.name)
 	}
@@ -242,6 +246,62 @@ func pageDown(dv *DasView) {
 	}
 }
 
+func enter(fv, iv *DasView) {
+	if cv != fv {
+		return
+	}
+
+	f, _ := fv.line[fv.cur].(*DasFunc)
+	if f.sect {
+		// toggle folding state
+		f.fold = !f.fold
+
+		// count entries again
+		c := 0
+		for _, f2 := range funcs {
+			if f2.sect {
+				if !f2.fold {
+					c += int(f2.start)
+				}
+				c++
+			}
+		}
+
+		// rebuild function list
+		line := make([]interface{}, c)
+
+		i := 0
+		skip := false
+
+		for _, f2 := range funcs {
+			// section is always added
+			if f2.sect {
+				line[i] = f2
+				i++
+				skip = f2.fold
+			} else if !skip {
+				line[i] = f2
+				i++
+			}
+		}
+
+		fv.line = line
+	} else {
+		// switch to instruction view
+		iv.top = 0
+		iv.cur = 0
+		iv.off = f.start
+		iv.BorderLabel = f.name
+
+		iv.line = make([]interface{}, len(f.insn))
+		for i, l := range f.insn {
+			iv.line[i] = l
+		}
+
+		cv = iv
+	}
+}
+
 func resize(dv *DasView) {
 	dv.Width = tui.TermWidth()
 	dv.Height = tui.TermHeight() - 1
@@ -339,27 +399,9 @@ func ShowTUI(file_name string) {
 	})
 
 	tui.Handle("/sys/kbd/<enter>", func(tui.Event) {
-		if cv != fv {
-			return
-		}
-
-		if !funcs[fv.cur].sect {
-			f := funcs[fv.cur]
-
-			iv.top = 0
-			iv.cur = 0
-			iv.off = f.start
-			iv.BorderLabel = f.name
-
-			iv.line = make([]interface{}, len(f.insn))
-			for i, l := range f.insn {
-				iv.line[i] = l
-			}
-
-			cv = iv
-			resize(cv)
-			render(cv)
-		}
+		enter(fv, iv)
+		resize(cv)
+		render(cv)
 	})
 
 	tui.Handle("/sys/kbd/<escape>", func(tui.Event) {

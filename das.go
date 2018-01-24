@@ -38,11 +38,13 @@ type DasFunc struct {
 	name  string
 	start int64
 	sect  bool
+	fold  bool // for section
 	insn  []*DasLine
 }
 
 var (
 	funcs []*DasFunc
+	csect *DasFunc // current section
 )
 
 func parseInsn(df *DasFunc, dl *DasLine, raw_line string) {
@@ -149,13 +151,16 @@ func parse(b *bytes.Buffer) {
 			// Disassembly of section .text:
 			sect := new(DasFunc)
 			sect.name = str.Split(line, "section ")[1]
+			sect.name = str.TrimRight(sect.name, ":\n")
 			sect.sect = true
 			funcs = append(funcs, sect)
+			csect = sect
 		case str.HasSuffix(line, ">:\n"):
 			// 00000000004aeba0 <main.main>:
 			func_line := str.Split(line, " ")
 			fn := parseFunction(b, func_line[1], func_line[0])
 			if fn != nil {
+				csect.start++ // abuse it as function count
 				funcs = append(funcs, fn)
 			}
 		default:
