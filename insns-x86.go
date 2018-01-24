@@ -1,6 +1,10 @@
 package main
 
-var Insn_x86_64 map[string]string
+var (
+	Insn_x86_64     map[string]string
+	Cond_x86_64     map[string]string
+	CondInsn_x86_64 []string
+)
 
 func init() {
 	Insn_x86_64 = map[string]string{
@@ -224,7 +228,7 @@ func init() {
 		"iret":            "Interrupt Return",
 		"iretd":           "Interrupt Return",
 		"jmp":             "Jump",
-		"j":               "Jump if Condition Is Met",
+		"j":               "Conditional Jump",
 		"lahf":            "Load Status Flags into AH Register",
 		"lar":             "Load Access Rights Byte",
 		"lddqu":           "Load Unaligned Integer 128 Bits",
@@ -660,4 +664,39 @@ func init() {
 		"xsetbv":          "Set Extended Control Register",
 		"xtest":           "Test If In Transactional Execution",
 	}
+
+	Cond_x86_64 = map[string]string{
+		"g":    "Greater",
+		"ng":   "Not Greater",
+		"ge":   "Greater or Equal",
+		"nge":  "Not Greater or Equal",
+		"l":    "Less",
+		"nl":   "Not Less",
+		"le":   "Less or Equal",
+		"nle":  "Not Less or Equal",
+		"a":    "Above",
+		"na":   "Not Above",
+		"ae":   "Above or Equal",
+		"nae":  "Not Above or Equal",
+		"b":    "Below",
+		"nb":   "Not Below",
+		"be":   "Below or Equal",
+		"nbe":  "Not Below or Equal",
+		"o":    "Overflow",
+		"no":   "Not Overflow",
+		"p":    "Parity",
+		"np":   "Not Parity",
+		"pe":   "Parity Even",
+		"po":   "Parity Odd",
+		"e":    "Equal",
+		"ne":   "Not Equal",
+		"s":    "Sign",
+		"ns":   "Not Sign",
+		"z":    "Zero",
+		"nz":   "Not Zero",
+		"cxz":  "CX register is Zero",
+		"excz": "ECX register is Zero",
+	}
+
+	CondInsn_x86_64 = []string{"cmov", "j", "loop", "set"}
 }
