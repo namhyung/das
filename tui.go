@@ -472,6 +472,21 @@ func escape(fv, iv *DasView) {
 	}
 }
 
+func list(dv *DasView) {
+	if len(history) == 0 {
+		return
+	}
+
+	h := history[len(history)-1]
+	history = nil
+
+	// switch to function view
+	dv.top = h.ftop
+	dv.cur = h.fcur
+
+	cv = dv
+}
+
 func rawMode(dv *DasView) {
 	if dv.insn {
 		// toggle to show raw opcode
@@ -602,6 +617,11 @@ func ShowTUI(file_name string) {
 	tui.Handle("/sys/kbd/v", func(tui.Event) {
 		rawMode(cv)
 		render(cv)
+	})
+
+	tui.Handle("/sys/kbd/l", func(tui.Event) {
+		list(fv)
+		render(fv)
 	})
 
 	tui.Loop()
