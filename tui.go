@@ -55,6 +55,9 @@ var (
 	cv      *DasView   // current viewer
 	sl      *DasStatus // status line
 	history []*DasHist
+	search  bool
+	sname   string // name to search
+	smove   bool   // move by search
 )
 
 func funcMsg(arg interface{}) string {
@@ -110,12 +113,23 @@ func insnMsg(arg interface{}) string {
 }
 
 func funcStat(arg interface{}) string {
+	if search {
+		return "search: " + sname
+	}
+
+	s := ""
 	df := arg.(*DasFunc)
 	if df.sect {
-		return fmt.Sprintf("section: %s (%d functions)", df.name, df.start)
+		s = fmt.Sprintf("section: %s (%d functions)", df.name, df.start)
 	} else {
-		return fmt.Sprintf("function: %s", df.name)
+		s = fmt.Sprintf("function: %s", df.name)
 	}
+
+	if smove && len(sname) > 0 {
+		s += fmt.Sprintf("  (search: %s)", sname)
+	}
+	smove = false
+	return s
 }
 
 func insnStat(arg interface{}) string {
@@ -224,6 +238,10 @@ func update(dv *DasView) {
 }
 
 func up(dv *DasView) {
+	if search {
+		return
+	}
+
 	if dv.cur == 0 {
 		return
 	}
@@ -236,6 +254,10 @@ func up(dv *DasView) {
 }
 
 func down(dv *DasView) {
+	if search {
+		return
+	}
+
 	if dv.cur == len(dv.line)-1 {
 		return
 	}
@@ -252,6 +274,10 @@ func down(dv *DasView) {
 }
 
 func pageUp(dv *DasView) {
+	if search {
+		return
+	}
+
 	if dv.cur == 0 {
 		return
 	}
@@ -272,6 +298,10 @@ func pageUp(dv *DasView) {
 }
 
 func pageDown(dv *DasView) {
+	if search {
+		return
+	}
+
 	if dv.cur == len(dv.line)-1 {
 		return
 	}
@@ -294,11 +324,19 @@ func pageDown(dv *DasView) {
 }
 
 func home(dv *DasView) {
+	if search {
+		return
+	}
+
 	dv.top = 0
 	dv.cur = 0
 }
 
 func end(dv *DasView) {
+	if search {
+		return
+	}
+
 	dv.cur = len(dv.line) - 1
 	dv.top = dv.cur - dv.Height + 3
 
@@ -365,6 +403,7 @@ func find(dv *DasView, name string) (*DasFunc, int, int) {
 			continue
 		}
 
+		// 'full' requires an exact match
 		if f.name != name {
 			continue
 		}
@@ -389,6 +428,66 @@ func find(dv *DasView, name string) (*DasFunc, int, int) {
 		return f, t, i
 	}
 	return nil, -1, -1
+}
+
+func doSearch(dv *DasView) {
+	dv.cur = -1
+	nextSearch(dv)
+}
+
+func prevSearch(dv *DasView) {
+	if search {
+		addSearch("p")
+		return
+	}
+
+	if len(sname) == 0 {
+		return
+	}
+
+	for i := dv.cur - 1; i >= 0; i-- {
+		fun := dv.line[i].(*DasFunc)
+
+		if !str.Contains(fun.name, sname) {
+			continue
+		}
+		dv.cur = i
+		dv.top = i
+		break
+	}
+	smove = true
+}
+
+func nextSearch(dv *DasView) {
+	if search {
+		addSearch("n")
+		return
+	}
+
+	if len(sname) == 0 {
+		return
+	}
+
+	for i := dv.cur + 1; i < len(dv.line); i++ {
+		fun := dv.line[i].(*DasFunc)
+
+		if !str.Contains(fun.name, sname) {
+			continue
+		}
+		dv.cur = i
+
+		t := i
+		if i+dv.Height-2 >= len(dv.line) {
+			t = len(dv.line) - dv.Height + 3
+
+			if t < 0 {
+				t = 0
+			}
+		}
+		dv.top = t
+		break
+	}
+	smove = true
 }
 
 // push current function to the history
@@ -442,6 +541,12 @@ func pop(fv, iv *DasView) {
 }
 
 func enter(fv, iv *DasView) {
+	if search {
+		search = false
+		doSearch(fv)
+		return
+	}
+
 	if cv.insn {
 		// move to a different function if it's call or return
 		ln := iv.line[iv.cur].(*DasLine)
@@ -496,12 +601,31 @@ func enter(fv, iv *DasView) {
 }
 
 func escape(fv, iv *DasView) {
+	if search {
+		// cancel search
+		search = false
+		sname = ""
+		return
+	}
+
 	if len(history) > 0 {
 		pop(fv, iv)
 	}
 }
 
+func backspace(dv *DasView) {
+	// delete search name
+	if search && len(sname) > 0 {
+		sname = sname[:len(sname)-1]
+	}
+}
+
 func list(dv *DasView) {
+	if search {
+		addSearch("l")
+		return
+	}
+
 	if len(history) == 0 {
 		return
 	}
@@ -516,7 +640,28 @@ func list(dv *DasView) {
 	cv = dv
 }
 
+func addSearch(key string) {
+	switch key {
+	case "C-8":
+		backspace(cv)
+
+	case "<space>":
+		sname += " "
+	case "<tab>":
+	case "<left>":
+	case "<right>":
+		break
+	default:
+		sname += key
+	}
+}
+
 func rawMode(dv *DasView) {
+	if search {
+		addSearch("v")
+		return
+	}
+
 	if dv.insn {
 		// toggle to show raw opcode
 		dv.raw = !dv.raw
@@ -599,6 +744,11 @@ func ShowTUI(file_name string) {
 
 	// handle key pressing
 	tui.Handle("/sys/kbd/q", func(tui.Event) {
+		if search {
+			addSearch("q")
+			render(cv)
+			return
+		}
 		// press q to quit
 		tui.StopLoop()
 	})
@@ -653,6 +803,11 @@ func ShowTUI(file_name string) {
 		render(cv)
 	})
 
+	tui.Handle("/sys/kbd/<backspace>", func(tui.Event) {
+		backspace(cv)
+		render(cv)
+	})
+
 	tui.Handle("/sys/kbd/v", func(tui.Event) {
 		rawMode(cv)
 		render(cv)
@@ -661,6 +816,28 @@ func ShowTUI(file_name string) {
 	tui.Handle("/sys/kbd/l", func(tui.Event) {
 		list(fv)
 		render(fv)
+	})
+
+	tui.Handle("/sys/kbd/n", func(tui.Event) {
+		nextSearch(fv)
+		render(fv)
+	})
+
+	tui.Handle("/sys/kbd/p", func(tui.Event) {
+		prevSearch(fv)
+		render(fv)
+	})
+
+	tui.Handle("/sys/kbd", func(e tui.Event) {
+		kev := e.Data.(tui.EvtKbd)
+
+		if !search && cv == fv && kev.KeyStr == "/" {
+			sname = "" // clear previous search
+			search = true
+		} else if search {
+			addSearch(kev.KeyStr)
+		}
+		render(cv)
 	})
 
 	tui.Loop()

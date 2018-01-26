@@ -21,6 +21,9 @@ It supports following keys
  * `v`: toggle "raw" mode
  * `l`: list functions
  * `q`: quit
+ * `/`: search
+ * `n`: search next
+ * `p`: search previous
 
 
 How to install
