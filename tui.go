@@ -162,14 +162,12 @@ func (dv *DasView) Buffer() tui.Buffer {
 		}
 
 		// fill cursor to the end
-		if i == dv.cur {
-			cs = tui.DefaultTxBuilder.Build(" ", fg, bg)
-			for x < dv.Width-2 {
-				for _, vv := range cs {
-					w := vv.Width()
-					buf.Set(x+1, y+1, vv)
-					x += w
-				}
+		cs = tui.DefaultTxBuilder.Build(" ", fg, bg)
+		for x < dv.Width-2 {
+			for _, vv := range cs {
+				w := vv.Width()
+				buf.Set(x+1, y+1, vv)
+				x += w
 			}
 		}
 
