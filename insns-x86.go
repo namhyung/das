@@ -269,6 +269,7 @@ func init() {
 		"minss":           "Return Minimum Scalar Single-Precision Floating-Point Value",
 		"monitor":         "Set Up Monitor Address",
 		"mov":             "Move",
+		"movabs":          "Move 64-bit Absolute Value",
 		"movapd":          "Move Aligned Packed Double-Precision Floating-Point Values",
 		"movaps":          "Move Aligned Packed Single-Precision Floating-Point Values",
 		"movbe":           "Move Data After Swapping Bytes",
