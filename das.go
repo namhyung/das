@@ -45,8 +45,10 @@ type DasFunc struct {
 }
 
 var (
-	funcs []*DasFunc
-	csect *DasFunc // current section
+	funcs      []*DasFunc
+	csect      *DasFunc         // current section
+	strs       map[int64]string // string table
+	lastOffset int64            // last code offset
 )
 
 func parseInsn(df *DasFunc, dl *DasLine, raw_line string) {
@@ -135,12 +137,15 @@ func parseFunction(b *bytes.Buffer, name, offset string) *DasFunc {
 			last_dl.opcode += dl.opcode
 		}
 
+		if lastOffset < dl.offset {
+			lastOffset = dl.offset
+		}
 	}
 
 	return df
 }
 
-func parse(b *bytes.Buffer) {
+func parseDisas(b *bytes.Buffer) {
 	//var filename, format string
 	var line string
 	var err error
@@ -211,6 +216,49 @@ func LookupInsn(name string) string {
 	return ""
 }
 
+func parseStrings(b *bytes.Buffer) {
+	var line string
+	var err error
+	var ofs int64
+
+	strs = make(map[int64]string)
+
+	for {
+		line, err = b.ReadString('\n')
+		if err != nil {
+			break
+		}
+
+		data := str.SplitN(str.TrimSpace(line), " ", 2)
+		if len(data) == 1 {
+			continue
+		}
+
+		ofs, err = scv.ParseInt(data[0], 16, 64)
+		strs[ofs] = data[1]
+	}
+}
+
+func lookupStrings(comment string, ignoreCode bool) string {
+	cmt := str.Split(comment, " ")
+	offset, err := scv.ParseInt(cmt[0], 16, 64)
+
+	if err != nil {
+		return fmt.Sprintf("%s: %s", comment, err.Error)
+	}
+
+	// some code might be guessed as strings, ignore it
+	if ignoreCode && offset <= lastOffset {
+		return comment
+	}
+
+	strconst, ok := strs[offset]
+	if ok {
+		return fmt.Sprintf("%x \"%s\"", offset, strconst)
+	}
+	return comment
+}
+
 func main() {
 	flag.Parse()
 
@@ -221,17 +269,28 @@ func main() {
 	}
 
 	target := args[0]
-
-	cmd := exec.Command("objdump", "-d", target)
 	var out bytes.Buffer
-	cmd.Stdout = &out
 
-	err := cmd.Run()
+	strings := exec.Command("strings", "-t", "x", target)
+	strings.Stdout = &out
+
+	err := strings.Run()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	parse(&out)
+	parseStrings(&out)
+	out.Reset()
+
+	objdump := exec.Command("objdump", "-d", target)
+	objdump.Stdout = &out
+
+	err = objdump.Run()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	parseDisas(&out)
 
 	ShowTUI(target)
 }

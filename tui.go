@@ -107,7 +107,7 @@ func insnMsg(arg interface{}) string {
 
 		if len(dl.comment) > 0 {
 			ls += "   # "
-			ls += dl.comment
+			ls += lookupStrings(dl.comment, true)
 		}
 	}
 
