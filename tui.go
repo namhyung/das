@@ -17,10 +17,12 @@ import (
 type DasView struct {
 	tui.Block // embedded
 
-	fg_normal tui.Attribute
-	bg_normal tui.Attribute
-	fg_focus  tui.Attribute
-	bg_focus  tui.Attribute
+	fg_normal  tui.Attribute
+	bg_normal  tui.Attribute
+	fg_focus   tui.Attribute
+	bg_focus   tui.Attribute
+	fg_special tui.Attribute
+	bg_special tui.Attribute
 
 	top   int
 	cur   int
@@ -162,6 +164,23 @@ func (dv *DasView) Buffer() tui.Buffer {
 		} else {
 			fg = dv.fg_normal
 			bg = dv.bg_normal
+
+			if dv.insn {
+				insn := dl.(*DasLine)
+
+				if insn.optype == OPTYPE_BRANCH ||
+					insn.optype == OPTYPE_RETURN {
+					fg = dv.fg_special
+					bg = dv.bg_special
+				}
+			} else {
+				fun := dl.(*DasFunc)
+
+				if fun.sect {
+					fg = dv.fg_special
+					bg = dv.bg_special
+				}
+			}
 		}
 
 		ls := dv.msg(dl)
@@ -703,13 +722,15 @@ func ShowTUI(file_name string) {
 
 	// function viewer
 	fv := &DasView{
-		Block:     *tui.NewBlock(),
-		fg_normal: tui.ColorWhite,
-		bg_normal: tui.ColorBlack,
-		fg_focus:  tui.ColorYellow,
-		bg_focus:  tui.ColorBlue,
-		msg:       funcMsg,
-		stat:      funcStat,
+		Block:      *tui.NewBlock(),
+		fg_normal:  tui.ColorWhite,
+		bg_normal:  tui.ColorBlack,
+		fg_focus:   tui.ColorYellow,
+		bg_focus:   tui.ColorBlue,
+		fg_special: tui.ColorYellow,
+		bg_special: tui.ColorBlack,
+		msg:        funcMsg,
+		stat:       funcStat,
 	}
 
 	fv.line = make([]interface{}, len(funcs))
@@ -719,14 +740,16 @@ func ShowTUI(file_name string) {
 
 	// insn viewer
 	iv := &DasView{
-		Block:     *tui.NewBlock(),
-		fg_normal: tui.ColorWhite,
-		bg_normal: tui.ColorBlack,
-		fg_focus:  tui.ColorYellow,
-		bg_focus:  tui.ColorBlue,
-		insn:      true,
-		msg:       insnMsg,
-		stat:      insnStat,
+		Block:      *tui.NewBlock(),
+		fg_normal:  tui.ColorWhite,
+		bg_normal:  tui.ColorBlack,
+		fg_focus:   tui.ColorYellow,
+		bg_focus:   tui.ColorBlue,
+		fg_special: tui.ColorYellow,
+		bg_special: tui.ColorBlack,
+		insn:       true,
+		msg:        insnMsg,
+		stat:       insnStat,
 	}
 
 	fv.BorderLabel = "DAS: " + file_name
