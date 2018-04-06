@@ -139,6 +139,11 @@ func insnStat(arg interface{}) string {
 	desc := LookupInsn(dl.mnemonic)
 
 	if len(desc) > 0 {
+		// there are two kinds of 'movsd' instructios
+		if dl.mnemonic == "movsd" && str.Contains(dl.args, "%xmm") {
+			desc = "Move Scalar Double-Precision Floating-Point Values"
+		}
+
 		return fmt.Sprintf("%s: %s (%s)", "instruction", dl.mnemonic, desc)
 	} else {
 		return "instruction: " + dl.mnemonic
