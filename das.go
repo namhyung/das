@@ -175,7 +175,7 @@ func parseDisas(b *bytes.Buffer) {
 			csect = sect
 		case str.HasSuffix(line, ">:\n"):
 			// 00000000004aeba0 <main.main>:
-			func_line := str.Split(line, " ")
+			func_line := str.SplitN(line, " ", 2)
 			fn := parseFunction(b, func_line[1], func_line[0])
 			if fn != nil {
 				csect.start++ // abuse it as function count
@@ -286,7 +286,7 @@ func main() {
 	parseStrings(&out)
 	out.Reset()
 
-	objdump := exec.Command("objdump", "-d", target)
+	objdump := exec.Command("objdump", "-d", "-C", target)
 	objdump.Stdout = &out
 
 	err = objdump.Run()
