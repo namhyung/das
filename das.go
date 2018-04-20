@@ -113,6 +113,10 @@ func parseFunction(b *bytes.Buffer, name, offset string) *DasFunc {
 			log.Println(err)
 		}
 
+		if line == "..." {
+			continue
+		}
+
 		//          [TAB]                   [TAB]
 		//   4aeba0:	64 48 8b 0c 25 f8 ff 	mov    %fs:0xfffffffffffffff8,%rcx
 		//   4aeba7:	ff ff
