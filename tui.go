@@ -9,6 +9,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	tui "github.com/airking05/termui" // for termui bug #177
 	scv "strconv"
 	str "strings"
@@ -720,6 +721,8 @@ func render(dv *DasView) {
 }
 
 func ShowTUI(file_name string) {
+	os.Setenv("TERM", "xterm")
+
 	if err := tui.Init(); err != nil {
 		panic(err)
 	}
