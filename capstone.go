@@ -355,7 +355,7 @@ func parseCapstone(f *os.File, e *elf.File, engine gcs.Engine) {
 		}
 
 		fn := new(DasFunc)
-		fn.name = sym.Name
+		fn.name = fmt.Sprintf("<%s>", sym.Name)
 		fn.start = int64(sym.Value)
 
 		for _, insn := range insns {
