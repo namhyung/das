@@ -112,7 +112,7 @@ func parseCapstoneInsn(insn gcs.Instruction, sym elf.Symbol) *DasLine {
 				dl.args = fmt.Sprintf("%#x", target-sym.Value)
 			} else {
 				if name, ok := syms[target]; ok {
-					dl.args = fmt.Sprintf("<%s>", name)
+					dl.args = fmt.Sprintf("%s", name)
 				} else if name, ok := relocs[target]; ok {
 					dl.args = fmt.Sprintf("<%s>", name)
 				} else {
@@ -139,7 +139,7 @@ func parseCapstoneInsn(insn gcs.Instruction, sym elf.Symbol) *DasLine {
 			imm += uint64(insn.Size)
 
 			if name, ok := syms[imm]; ok {
-				dl.args += fmt.Sprintf("   # %x <%s>", imm, name)
+				dl.args += fmt.Sprintf("   # %x %s", imm, name)
 			} else if name, ok := relocs[imm]; ok {
 				dl.args += fmt.Sprintf("   # %x <%s>", imm, name)
 			} else {
@@ -220,7 +220,7 @@ func parsePLT0(insns []gcs.Instruction) int {
 	var idx int
 
 	fn := new(DasFunc)
-	fn.name = "plt0"
+	fn.name = "<plt0>"
 	fn.start = int64(insns[0].Address)
 
 	funcs = append(funcs, fn)
@@ -275,9 +275,9 @@ func parsePLTEntry(insns []gcs.Instruction, idx int) int {
 
 			// update function name using reloc info
 			if name, ok := relocs[imm]; ok {
-				fn.name = fmt.Sprintf("%s@plt", name)
+				fn.name = fmt.Sprintf("<%s@plt>", name)
 				syms[uint64(fn.start)] = fn.name
-				dl.args += fmt.Sprintf("   # %x <%s>", imm, fn.name)
+				dl.args += fmt.Sprintf("   # %x %s", imm, fn.name)
 			}
 		}
 
@@ -326,7 +326,7 @@ func parseCapstone(f *os.File, e *elf.File, engine gcs.Engine) {
 		if elf.ST_TYPE(sym.Info) != elf.STT_FUNC {
 			continue
 		}
-		syms[sym.Value] = sym.Name
+		syms[sym.Value] = fmt.Sprintf("<%s>", sym.Name)
 	}
 
 	parseReloc(f, e, engine)
