@@ -78,14 +78,18 @@ func prepareCapstone(target string) (*os.File, *elf.File, gcs.Engine) {
 	return f, e, engine
 }
 
-func makeRawline(dl *DasLine, insn gcs.Instruction) {
+func makeRawline(dl *DasLine, insn gcs.Instruction, comment string) {
 	for _, x := range insn.Bytes {
 		dl.rawline += fmt.Sprintf("%02x ", x)
 	}
 	for len(dl.rawline) < 30 {
 		dl.rawline += "   "
 	}
-	dl.rawline += fmt.Sprintf("%-8s  %s", dl.mnemonic, dl.args)
+	dl.rawline += fmt.Sprintf("%-8s  %s", insn.Mnemonic, insn.OpStr)
+
+	if comment != "" {
+		dl.rawline += comment
+	}
 }
 
 func parseCapstoneInsn(insn gcs.Instruction, sym elf.Symbol) *DasLine {
@@ -95,7 +99,7 @@ func parseCapstoneInsn(insn gcs.Instruction, sym elf.Symbol) *DasLine {
 	dl.mnemonic = insn.Mnemonic
 	dl.args = insn.OpStr
 
-	makeRawline(dl, insn)
+	comment := ""
 
 	if str.HasPrefix(dl.mnemonic, "ret") {
 		dl.optype = OPTYPE_RETURN
@@ -113,8 +117,10 @@ func parseCapstoneInsn(insn gcs.Instruction, sym elf.Symbol) *DasLine {
 			} else {
 				if name, ok := syms[target]; ok {
 					dl.args = fmt.Sprintf("%s", name)
+					comment = fmt.Sprintf("   # %s", dl.args)
 				} else if name, ok := relocs[target]; ok {
 					dl.args = fmt.Sprintf("<%s>", name)
+					comment = fmt.Sprintf("   # %s", dl.args)
 				} else {
 					dl.args = fmt.Sprintf("%#x", target)
 				}
@@ -128,6 +134,7 @@ func parseCapstoneInsn(insn gcs.Instruction, sym elf.Symbol) *DasLine {
 			// update function name using reloc info
 			if name, ok := relocs[imm]; ok {
 				dl.args = fmt.Sprintf("<%s>", name)
+				comment = fmt.Sprintf("   # %x %s", imm, dl.args)
 			}
 		}
 	} else if str.HasPrefix(dl.mnemonic, "lea") {
@@ -139,14 +146,17 @@ func parseCapstoneInsn(insn gcs.Instruction, sym elf.Symbol) *DasLine {
 			imm += uint64(insn.Size)
 
 			if name, ok := syms[imm]; ok {
-				dl.args += fmt.Sprintf("   # %x %s", imm, name)
+				comment = fmt.Sprintf("   # %x %s", imm, name)
 			} else if name, ok := relocs[imm]; ok {
-				dl.args += fmt.Sprintf("   # %x <%s>", imm, name)
+				comment = fmt.Sprintf("   # %x <%s>", imm, name)
 			} else {
-				dl.args += fmt.Sprintf("   # %x", imm)
+				comment = fmt.Sprintf("   # %x", imm)
 			}
+			dl.args += comment
 		}
 	}
+
+	makeRawline(dl, insn, comment)
 
 	return dl
 }
@@ -230,7 +240,7 @@ func parsePLT0(insns []gcs.Instruction) int {
 	dl.offset = int64(insns[0].Address)
 	dl.mnemonic = insns[0].Mnemonic
 	dl.args = insns[0].OpStr
-	makeRawline(dl, insns[0])
+	makeRawline(dl, insns[0], "")
 
 	fn.insn = append(fn.insn, dl)
 
@@ -239,7 +249,7 @@ func parsePLT0(insns []gcs.Instruction) int {
 		dl.offset = int64(insns[idx].Address)
 		dl.mnemonic = insns[idx].Mnemonic
 		dl.args = insns[idx].OpStr
-		makeRawline(dl, insns[idx])
+		makeRawline(dl, insns[idx], "")
 
 		fn.insn = append(fn.insn, dl)
 
@@ -262,8 +272,8 @@ func parsePLTEntry(insns []gcs.Instruction, idx int) int {
 		dl.offset = int64(insns[idx+i].Address)
 		dl.mnemonic = insns[idx+i].Mnemonic
 		dl.args = insns[idx+i].OpStr
-		makeRawline(dl, insns[idx+i])
 
+		comment := ""
 		fn.insn = append(fn.insn, dl)
 
 		if i == 0 && dl.args[0] == '*' && str.HasSuffix(dl.args, "(%rip)") {
@@ -277,7 +287,8 @@ func parsePLTEntry(insns []gcs.Instruction, idx int) int {
 			if name, ok := relocs[imm]; ok {
 				fn.name = fmt.Sprintf("<%s@plt>", name)
 				syms[uint64(fn.start)] = fn.name
-				dl.args += fmt.Sprintf("   # %x %s", imm, fn.name)
+				comment = fmt.Sprintf("   # %x %s", imm, fn.name)
+				dl.args += comment
 			}
 		}
 
@@ -286,6 +297,8 @@ func parsePLTEntry(insns []gcs.Instruction, idx int) int {
 			dl.target = int64(insns[0].Address)
 			dl.args = "<plt0>"
 		}
+
+		makeRawline(dl, insns[idx+i], comment)
 	}
 
 	return 3
