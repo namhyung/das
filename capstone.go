@@ -351,7 +351,8 @@ func parseCapstone(f *os.File, e *elf.File, engine gcs.Engine) {
 
 		insns, err := engine.Disasm(buf, sym.Value, 0)
 		if err != nil {
-			log.Fatal(err)
+			fmt.Printf("Capstone disasm failed for %s\n", sym.Name)
+			continue
 		}
 
 		fn := new(DasFunc)
