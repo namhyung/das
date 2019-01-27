@@ -161,7 +161,7 @@ func parseCapstoneInsn(insn gcs.Instruction, sym elf.Symbol) *DasLine {
 	return dl
 }
 
-func parseReloc(f *os.File, e *elf.File, engine gcs.Engine) {
+func parseReloc(e *elf.File, engine gcs.Engine) {
 	symtab, err := e.DynamicSymbols()
 	if err != nil {
 		log.Fatal(err)
@@ -304,7 +304,7 @@ func parsePLTEntry(insns []gcs.Instruction, idx int) int {
 	return 3
 }
 
-func parsePLT(f *os.File, e *elf.File, engine gcs.Engine) {
+func parsePLT(e *elf.File, engine gcs.Engine) {
 	for _, sec := range e.Sections {
 		if sec.Name != ".plt" {
 			continue
@@ -329,7 +329,7 @@ func parsePLT(f *os.File, e *elf.File, engine gcs.Engine) {
 	}
 }
 
-func parseCapstone(f *os.File, e *elf.File, engine gcs.Engine) {
+func parseCapstone(e *elf.File, engine gcs.Engine) {
 	symtab, err := e.Symbols()
 	if err != nil {
 		log.Fatal(err)
@@ -342,8 +342,8 @@ func parseCapstone(f *os.File, e *elf.File, engine gcs.Engine) {
 		syms[sym.Value] = fmt.Sprintf("<%s>", sym.Name)
 	}
 
-	parseReloc(f, e, engine)
-	parsePLT(f, e, engine)
+	parseReloc(e, engine)
+	parsePLT(e, engine)
 
 	for _, sym := range symtab {
 		if elf.ST_TYPE(sym.Info) != elf.STT_FUNC {
@@ -354,15 +354,11 @@ func parseCapstone(f *os.File, e *elf.File, engine gcs.Engine) {
 			continue
 		}
 
-		buf := make([]byte, sym.Size)
 		sec := e.Sections[sym.Section]
+		buf, err := sec.Data()
 
-		_, err = f.ReadAt(buf, int64(sym.Value-sec.Addr+sec.Offset))
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		insns, err := engine.Disasm(buf, sym.Value, 0)
+		sym_start := sym.Value - sec.Addr;
+		insns, err := engine.Disasm(buf[sym_start:sym_start + sym.Size], sym.Value, 0)
 		if err != nil {
 			fmt.Printf("Capstone disasm failed for %s\n", sym.Name)
 			continue

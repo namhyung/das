@@ -64,9 +64,10 @@ func main() {
 	if capstone {
 		f, e, engine := prepareCapstone(target)
 		defer engine.Close()
+		defer e.Close()
 		defer f.Close()
 
-		parseCapstone(f, e, engine)
+		parseCapstone(e, engine)
 	} else {
 		var buf *bytes.Buffer
 
