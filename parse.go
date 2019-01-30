@@ -1,13 +1,16 @@
 package main
 
 import (
+	"debug/elf"
 	"fmt"
+	gcs "github.com/bnagy/gapstone"
 	scv "strconv"
 	str "strings"
 )
 
 type Decoder interface {
 	Objdump(df *DasFunc, line string)
+	Capstone(insn gcs.Instruction, sym elf.Symbol) *DasLine
 }
 
 type X86Decoder struct {
@@ -77,4 +80,87 @@ func (d X86Decoder) Objdump(df *DasFunc, line string) {
 	}
 
 	df.insn = append(df.insn, dl)
+}
+
+func makeRawline(dl *DasLine, insn gcs.Instruction, comment string) {
+	for _, x := range insn.Bytes {
+		dl.rawline += fmt.Sprintf("%02x ", x)
+	}
+	for len(dl.rawline) < 30 {
+		dl.rawline += "   "
+	}
+	dl.rawline += fmt.Sprintf("%-8s  %s", insn.Mnemonic, insn.OpStr)
+
+	if comment != "" {
+		dl.rawline += comment
+	}
+}
+
+func (d X86Decoder) Capstone(insn gcs.Instruction, sym elf.Symbol) *DasLine {
+	dl := new(DasLine)
+
+	dl.offset = int64(insn.Address)
+	dl.mnemonic = insn.Mnemonic
+	dl.args = insn.OpStr
+
+	comment := ""
+
+	if str.HasPrefix(dl.mnemonic, "ret") {
+		dl.optype = OPTYPE_RETURN
+	} else if str.HasPrefix(dl.mnemonic, "j") ||
+		str.HasPrefix(dl.mnemonic, "call") {
+		dl.optype = OPTYPE_BRANCH
+
+		if str.HasPrefix(dl.args, "0x") {
+			target, _ := scv.ParseUint(insn.OpStr, 0, 64)
+			dl.target = int64(target)
+
+			if sym.Value <= target && target < sym.Value+sym.Size {
+				dl.local = true
+				dl.args = fmt.Sprintf("%#x", target-sym.Value)
+			} else {
+				if name, ok := syms[target]; ok {
+					dl.args = fmt.Sprintf("%s", name)
+					comment = fmt.Sprintf("   # %s", dl.args)
+				} else if name, ok := relocs[target]; ok {
+					dl.args = fmt.Sprintf("<%s>", name)
+					comment = fmt.Sprintf("   # %s", dl.args)
+				} else {
+					dl.args = fmt.Sprintf("%#x", target)
+				}
+			}
+		}
+		if dl.args[0] == '*' && str.HasSuffix(dl.args, "(%rip)") {
+			imm, _ := scv.ParseUint(dl.args[1:len(dl.args)-6], 0, 64)
+			imm += uint64(insn.Address)
+			imm += uint64(insn.Size)
+
+			// update function name using reloc info
+			if name, ok := relocs[imm]; ok {
+				dl.args = fmt.Sprintf("<%s>", name)
+				comment = fmt.Sprintf("   # %x %s", imm, dl.args)
+			}
+		}
+	} else if str.HasPrefix(dl.mnemonic, "lea") {
+		idx := str.Index(insn.OpStr, "(%rip)")
+
+		if idx != -1 {
+			imm, _ := scv.ParseUint(insn.OpStr[0:idx], 0, 64)
+			imm += uint64(insn.Address)
+			imm += uint64(insn.Size)
+
+			if name, ok := syms[imm]; ok {
+				comment = fmt.Sprintf("   # %x %s", imm, name)
+			} else if name, ok := relocs[imm]; ok {
+				comment = fmt.Sprintf("   # %x <%s>", imm, name)
+			} else {
+				comment = fmt.Sprintf("   # %x", imm)
+			}
+			dl.args += comment
+		}
+	}
+
+	makeRawline(dl, insn, comment)
+
+	return dl
 }

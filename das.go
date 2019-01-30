@@ -62,12 +62,13 @@ func main() {
 	target := args[0]
 
 	if capstone {
-		f, e, engine := prepareCapstone(target)
-		defer engine.Close()
-		defer e.Close()
-		defer f.Close()
+		cap := prepareCapstone(target)
 
-		parseCapstone(e, engine)
+		parseCapstone(cap)
+
+		cap.engine.Close()
+		cap.elf.Close()
+		cap.file.Close()
 	} else {
 		var buf *bytes.Buffer
 

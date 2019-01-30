@@ -37,7 +37,14 @@ func (arr FuncSlice) Swap(i, j int) {
 	arr[i], arr[j] = arr[j], arr[i]
 }
 
-func prepareCapstone(target string) (*os.File, *elf.File, gcs.Engine) {
+type CapstoneParser struct {
+	decoder Decoder
+	engine  gcs.Engine
+	elf     *elf.File
+	file    *os.File
+}
+
+func prepareCapstone(target string) *CapstoneParser {
 	f, err := os.Open(target)
 	if err != nil {
 		log.Fatal(err)
@@ -50,14 +57,17 @@ func prepareCapstone(target string) (*os.File, *elf.File, gcs.Engine) {
 
 	var arch int
 	var mode uint
+	var d Decoder
 
 	switch e.Machine {
 	case elf.EM_X86_64:
 		arch = gcs.CS_ARCH_X86
 		mode = gcs.CS_MODE_64
+		d = X86Decoder{}
 	case elf.EM_386:
 		arch = gcs.CS_ARCH_X86
 		mode = gcs.CS_MODE_32
+		d = X86Decoder{}
 	case elf.EM_ARM:
 		arch = gcs.CS_ARCH_ARM
 		mode = gcs.CS_MODE_ARM
@@ -75,99 +85,16 @@ func prepareCapstone(target string) (*os.File, *elf.File, gcs.Engine) {
 
 	engine.SetOption(gcs.CS_OPT_SYNTAX, gcs.CS_OPT_SYNTAX_ATT)
 
-	return f, e, engine
+	return &CapstoneParser { d, engine, e, f }
 }
 
-func makeRawline(dl *DasLine, insn gcs.Instruction, comment string) {
-	for _, x := range insn.Bytes {
-		dl.rawline += fmt.Sprintf("%02x ", x)
-	}
-	for len(dl.rawline) < 30 {
-		dl.rawline += "   "
-	}
-	dl.rawline += fmt.Sprintf("%-8s  %s", insn.Mnemonic, insn.OpStr)
-
-	if comment != "" {
-		dl.rawline += comment
-	}
-}
-
-func parseCapstoneInsn(insn gcs.Instruction, sym elf.Symbol) *DasLine {
-	dl := new(DasLine)
-
-	dl.offset = int64(insn.Address)
-	dl.mnemonic = insn.Mnemonic
-	dl.args = insn.OpStr
-
-	comment := ""
-
-	if str.HasPrefix(dl.mnemonic, "ret") {
-		dl.optype = OPTYPE_RETURN
-	} else if str.HasPrefix(dl.mnemonic, "j") ||
-		str.HasPrefix(dl.mnemonic, "call") {
-		dl.optype = OPTYPE_BRANCH
-
-		if str.HasPrefix(dl.args, "0x") {
-			target, _ := scv.ParseUint(insn.OpStr, 0, 64)
-			dl.target = int64(target)
-
-			if sym.Value <= target && target < sym.Value+sym.Size {
-				dl.local = true
-				dl.args = fmt.Sprintf("%#x", target-sym.Value)
-			} else {
-				if name, ok := syms[target]; ok {
-					dl.args = fmt.Sprintf("%s", name)
-					comment = fmt.Sprintf("   # %s", dl.args)
-				} else if name, ok := relocs[target]; ok {
-					dl.args = fmt.Sprintf("<%s>", name)
-					comment = fmt.Sprintf("   # %s", dl.args)
-				} else {
-					dl.args = fmt.Sprintf("%#x", target)
-				}
-			}
-		}
-		if dl.args[0] == '*' && str.HasSuffix(dl.args, "(%rip)") {
-			imm, _ := scv.ParseUint(dl.args[1:len(dl.args)-6], 0, 64)
-			imm += uint64(insn.Address)
-			imm += uint64(insn.Size)
-
-			// update function name using reloc info
-			if name, ok := relocs[imm]; ok {
-				dl.args = fmt.Sprintf("<%s>", name)
-				comment = fmt.Sprintf("   # %x %s", imm, dl.args)
-			}
-		}
-	} else if str.HasPrefix(dl.mnemonic, "lea") {
-		idx := str.Index(insn.OpStr, "(%rip)")
-
-		if idx != -1 {
-			imm, _ := scv.ParseUint(insn.OpStr[0:idx], 0, 64)
-			imm += uint64(insn.Address)
-			imm += uint64(insn.Size)
-
-			if name, ok := syms[imm]; ok {
-				comment = fmt.Sprintf("   # %x %s", imm, name)
-			} else if name, ok := relocs[imm]; ok {
-				comment = fmt.Sprintf("   # %x <%s>", imm, name)
-			} else {
-				comment = fmt.Sprintf("   # %x", imm)
-			}
-			dl.args += comment
-		}
-	}
-
-	makeRawline(dl, insn, comment)
-
-	return dl
-}
-
-func parseReloc(e *elf.File, engine gcs.Engine) {
-	symtab, err := e.DynamicSymbols()
+func parseReloc(cap *CapstoneParser) {
+	symtab, err := cap.elf.DynamicSymbols()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	for _, sec := range e.Sections {
+	for _, sec := range cap.elf.Sections {
 		if sec.Type != elf.SHT_REL && sec.Type != elf.SHT_RELA {
 			continue
 		}
@@ -186,13 +113,13 @@ func parseReloc(e *elf.File, engine gcs.Engine) {
 
 			data = bytes.NewBuffer(buf[i : i+esize])
 
-			if e.Data == elf.ELFDATA2LSB {
+			if cap.elf.Data == elf.ELFDATA2LSB {
 				endian = binary.LittleEndian
 			} else {
 				endian = binary.BigEndian
 			}
 
-			if e.Class == elf.ELFCLASS64 {
+			if cap.elf.Class == elf.ELFCLASS64 {
 				if sec.Type == elf.SHT_RELA {
 					reloc := elf.Rela64{}
 					binary.Read(data, endian, &reloc)
@@ -226,7 +153,7 @@ func parseReloc(e *elf.File, engine gcs.Engine) {
 	}
 }
 
-func parsePLT0(insns []gcs.Instruction) int {
+func parsePLT0(cap *CapstoneParser, insns []gcs.Instruction) int {
 	var idx int
 
 	fn := new(DasFunc)
@@ -236,21 +163,11 @@ func parsePLT0(insns []gcs.Instruction) int {
 	funcs = append(funcs, fn)
 	syms[uint64(fn.start)] = fn.name
 
-	dl := new(DasLine)
-	dl.offset = int64(insns[0].Address)
-	dl.mnemonic = insns[0].Mnemonic
-	dl.args = insns[0].OpStr
-	makeRawline(dl, insns[0], "")
-
+	dl := cap.decoder.Capstone(insns[0], elf.Symbol{})
 	fn.insn = append(fn.insn, dl)
 
-	for idx = 1; insns[idx].Address&0xf != 0; idx++ {
-		dl = new(DasLine)
-		dl.offset = int64(insns[idx].Address)
-		dl.mnemonic = insns[idx].Mnemonic
-		dl.args = insns[idx].OpStr
-		makeRawline(dl, insns[idx], "")
-
+	for idx = 1; insns[idx].Address & 0xf != 0; idx++ {
+		dl = cap.decoder.Capstone(insns[idx], elf.Symbol{})
 		fn.insn = append(fn.insn, dl)
 
 		if str.HasPrefix(dl.mnemonic, "j") {
@@ -261,51 +178,36 @@ func parsePLT0(insns []gcs.Instruction) int {
 	return idx
 }
 
-func parsePLTEntry(insns []gcs.Instruction, idx int) int {
+func parsePLTEntry(cap *CapstoneParser, insns []gcs.Instruction, idx int) int {
 	fn := new(DasFunc)
 	fn.start = int64(insns[idx].Address)
 
 	funcs = append(funcs, fn)
 
 	for i := 0; i < 3; i++ {
-		dl := new(DasLine)
-		dl.offset = int64(insns[idx+i].Address)
-		dl.mnemonic = insns[idx+i].Mnemonic
-		dl.args = insns[idx+i].OpStr
+		insn := insns[idx + i]
 
-		comment := ""
-		fn.insn = append(fn.insn, dl)
-
-		if i == 0 && dl.args[0] == '*' && str.HasSuffix(dl.args, "(%rip)") {
-			dl.optype = OPTYPE_BRANCH
-
-			imm, _ := scv.ParseUint(dl.args[1:len(dl.args)-6], 0, 64)
-			imm += uint64(insns[idx+i].Address)
-			imm += uint64(insns[idx+i].Size)
+		if i == 0 && insn.OpStr[0] == '*' && str.HasSuffix(insn.OpStr, "(%rip)") {
+			imm, _ := scv.ParseUint(insn.OpStr[1:len(insn.OpStr)-6], 0, 64)
+			imm += uint64(insn.Address)
+			imm += uint64(insn.Size)
 
 			// update function name using reloc info
 			if name, ok := relocs[imm]; ok {
 				fn.name = fmt.Sprintf("<%s@plt>", name)
 				syms[uint64(fn.start)] = fn.name
-				comment = fmt.Sprintf("   # %x %s", imm, fn.name)
-				dl.args += comment
 			}
 		}
 
-		if i == 2 {
-			dl.optype = OPTYPE_BRANCH
-			dl.target = int64(insns[0].Address)
-			dl.args = "<plt0>"
-		}
-
-		makeRawline(dl, insns[idx+i], comment)
+		dl := cap.decoder.Capstone(insn, elf.Symbol{})
+		fn.insn = append(fn.insn, dl)
 	}
 
 	return 3
 }
 
-func parsePLT(e *elf.File, engine gcs.Engine) {
-	for _, sec := range e.Sections {
+func parsePLT(cap *CapstoneParser) {
+	for _, sec := range cap.elf.Sections {
 		if sec.Name != ".plt" {
 			continue
 		}
@@ -315,22 +217,22 @@ func parsePLT(e *elf.File, engine gcs.Engine) {
 			log.Fatal(err)
 		}
 
-		insns, err := engine.Disasm(buf, sec.Addr, 0)
+		insns, err := cap.engine.Disasm(buf, sec.Addr, 0)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		idx := parsePLT0(insns)
+		idx := parsePLT0(cap, insns)
 
 		for idx < len(insns) {
-			idx += parsePLTEntry(insns, idx)
+			idx += parsePLTEntry(cap, insns, idx)
 		}
 		break
 	}
 }
 
-func parseCapstone(e *elf.File, engine gcs.Engine) {
-	symtab, err := e.Symbols()
+func parseCapstone(cap *CapstoneParser) {
+	symtab, err := cap.elf.Symbols()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -342,8 +244,8 @@ func parseCapstone(e *elf.File, engine gcs.Engine) {
 		syms[sym.Value] = fmt.Sprintf("<%s>", sym.Name)
 	}
 
-	parseReloc(e, engine)
-	parsePLT(e, engine)
+	parseReloc(cap)
+	parsePLT(cap)
 
 	for _, sym := range symtab {
 		if elf.ST_TYPE(sym.Info) != elf.STT_FUNC {
@@ -354,11 +256,11 @@ func parseCapstone(e *elf.File, engine gcs.Engine) {
 			continue
 		}
 
-		sec := e.Sections[sym.Section]
+		sec := cap.elf.Sections[sym.Section]
 		buf, err := sec.Data()
 
 		sym_start := sym.Value - sec.Addr;
-		insns, err := engine.Disasm(buf[sym_start:sym_start + sym.Size], sym.Value, 0)
+		insns, err := cap.engine.Disasm(buf[sym_start:sym_start + sym.Size], sym.Value, 0)
 		if err != nil {
 			fmt.Printf("Capstone disasm failed for %s\n", sym.Name)
 			continue
@@ -369,7 +271,7 @@ func parseCapstone(e *elf.File, engine gcs.Engine) {
 		fn.start = int64(sym.Value)
 
 		for _, insn := range insns {
-			dl := parseCapstoneInsn(insn, sym)
+			dl := cap.decoder.Capstone(insn, sym)
 			fn.insn = append(fn.insn, dl)
 
 		}
@@ -378,6 +280,7 @@ func parseCapstone(e *elf.File, engine gcs.Engine) {
 
 	sort.Sort(FuncSlice(funcs))
 
+	sects := cap.elf.Sections
 	secidx := -1
 	count := len(funcs)
 
@@ -385,9 +288,9 @@ func parseCapstone(e *elf.File, engine gcs.Engine) {
 		fn := funcs[i]
 		addr := uint64(fn.start)
 
-		if secidx == -1 || e.Sections[secidx].Addr+e.Sections[secidx].Size <= addr {
-			for secidx++; secidx < len(e.Sections); secidx++ {
-				sec := e.Sections[secidx]
+		if secidx == -1 || sects[secidx].Addr + sects[secidx].Size <= addr {
+			for secidx++; secidx < len(sects); secidx++ {
+				sec := sects[secidx]
 				if (sec.Flags & elf.SHF_EXECINSTR) == 0 {
 					continue
 				}
