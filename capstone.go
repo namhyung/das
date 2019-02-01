@@ -9,16 +9,19 @@ import (
 	"log"
 	"os"
 	"sort"
+	"unsafe"
 )
 
 var (
 	syms   map[uint64]string
 	relocs map[uint64]string
+	vers   map[uint16]string
 )
 
 func init() {
 	syms = make(map[uint64]string)
 	relocs = make(map[uint64]string)
+	vers = make(map[uint16]string)
 }
 
 type FuncSlice []*DasFunc
@@ -54,7 +57,7 @@ func prepareCapstone(target string) *CapstoneParser {
 	}
 
 	var arch int
-	var mode uint
+	var mode int
 	var d Decoder
 
 	switch e.Machine {
@@ -148,6 +151,76 @@ func parseReloc(cap *CapstoneParser) {
 			}
 			relocs[offset] = symtab[idx-1].Name
 		}
+	}
+}
+
+type elfVerNeed struct {
+	struct_version uint16
+	aux_count uint16
+	filename uint32
+	aux_offset uint32
+	next uint32
+}
+
+type elfVerAux struct {
+	hash uint32
+	flag uint16
+	vnum uint16
+	name uint32
+	next uint32
+}
+
+func parseVersion(cap *CapstoneParser) {
+	for _, sec := range cap.elf.Sections {
+		if sec.Name != ".gnu.version_r" {
+			continue
+		}
+
+		var endian binary.ByteOrder = binary.LittleEndian
+		if cap.elf.Data == elf.ELFDATA2MSB {
+			endian = binary.BigEndian
+		}
+
+		dynstr, err := cap.elf.Sections[sec.Link].Data()
+
+		buf, err := sec.Data()
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		var off uint32
+		off = 0
+
+		for {
+			verNeed := elfVerNeed{}
+			data := bytes.NewBuffer(buf[off : off + uint32(unsafe.Sizeof(verNeed))])
+			binary.Read(data, endian, &verNeed)
+			off = verNeed.next
+
+			auxoff := verNeed.aux_offset
+
+			for auxcnt := 0; auxcnt < int(verNeed.aux_count); auxcnt++ {
+				verAux := elfVerAux{}
+				data = bytes.NewBuffer(buf[auxoff : auxoff + uint32(unsafe.Sizeof(verAux))])
+				binary.Read(data, endian, &verAux)
+
+				/* FIXME: build string from offset */
+				var len uint32 = 0
+				for i, b := range dynstr[verAux.name:] {
+					if b == 0 {
+						len = uint32(i)
+						break
+					}
+				}
+				vers[verAux.vnum] = string(dynstr[verAux.name:verAux.name+len])
+				auxoff = verAux.next
+			}
+
+			if off == 0 {
+				break
+			}
+		}
+		break
 	}
 }
 

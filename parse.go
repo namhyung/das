@@ -125,7 +125,8 @@ func (d X86Decoder) Capstone(insn gcs.Instruction, sym elf.Symbol) *DasLine {
 					dl.args = fmt.Sprintf("%s", name)
 					comment = fmt.Sprintf("   # %s", dl.args)
 				} else if name, ok := relocs[target]; ok {
-					dl.args = fmt.Sprintf("<%s>", name)
+					version := vers[2]
+					dl.args = fmt.Sprintf("%s@%s", name, version)
 					comment = fmt.Sprintf("   # %s", dl.args)
 				} else {
 					dl.args = fmt.Sprintf("%#x", target)
