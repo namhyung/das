@@ -4,6 +4,7 @@ import (
 	"debug/elf"
 	"fmt"
 	gcs "github.com/bnagy/gapstone"
+	"log"
 	scv "strconv"
 	str "strings"
 )
@@ -11,6 +12,7 @@ import (
 type Decoder interface {
 	Objdump(df *DasFunc, line string)
 	Capstone(insn gcs.Instruction, sym elf.Symbol) *DasLine
+	ParsePLT(cap *CapstoneParser)
 }
 
 type X86Decoder struct {
@@ -163,4 +165,82 @@ func (d X86Decoder) Capstone(insn gcs.Instruction, sym elf.Symbol) *DasLine {
 	makeRawline(dl, insn, comment)
 
 	return dl
+}
+
+func parseX86PLT0(cap *CapstoneParser, insns []gcs.Instruction) int {
+	var idx int
+
+	fn := new(DasFunc)
+	fn.name = "<plt0>"
+	fn.start = int64(insns[0].Address)
+
+	funcs = append(funcs, fn)
+	syms[uint64(fn.start)] = fn.name
+
+	dl := cap.decoder.Capstone(insns[0], elf.Symbol{})
+	fn.insn = append(fn.insn, dl)
+
+	for idx = 1; insns[idx].Address & 0xf != 0; idx++ {
+		dl = cap.decoder.Capstone(insns[idx], elf.Symbol{})
+		fn.insn = append(fn.insn, dl)
+
+		if str.HasPrefix(dl.mnemonic, "j") {
+			dl.optype = OPTYPE_BRANCH
+		}
+	}
+
+	return idx
+}
+
+func parseX86PLTEntry(cap *CapstoneParser, insns []gcs.Instruction, idx int) int {
+	fn := new(DasFunc)
+	fn.start = int64(insns[idx].Address)
+
+	funcs = append(funcs, fn)
+
+	for i := 0; i < 3; i++ {
+		insn := insns[idx + i]
+
+		if i == 0 && insn.OpStr[0] == '*' && str.HasSuffix(insn.OpStr, "(%rip)") {
+			imm, _ := scv.ParseUint(insn.OpStr[1:len(insn.OpStr)-6], 0, 64)
+			imm += uint64(insn.Address)
+			imm += uint64(insn.Size)
+
+			// update function name using reloc info
+			if name, ok := relocs[imm]; ok {
+				fn.name = fmt.Sprintf("<%s@plt>", name)
+				syms[uint64(fn.start)] = fn.name
+			}
+		}
+
+		dl := cap.decoder.Capstone(insn, elf.Symbol{})
+		fn.insn = append(fn.insn, dl)
+	}
+
+	return 3
+}
+
+func (d X86Decoder) ParsePLT(cap *CapstoneParser) {
+	for _, sec := range cap.elf.Sections {
+		if sec.Name != ".plt" {
+			continue
+		}
+
+		buf, err := sec.Data()
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		insns, err := cap.engine.Disasm(buf, sec.Addr, 0)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		idx := parseX86PLT0(cap, insns)
+
+		for idx < len(insns) {
+			idx += parseX86PLTEntry(cap, insns, idx)
+		}
+		break
+	}
 }

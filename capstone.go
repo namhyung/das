@@ -9,8 +9,6 @@ import (
 	"log"
 	"os"
 	"sort"
-	scv "strconv"
-	str "strings"
 )
 
 var (
@@ -153,84 +151,6 @@ func parseReloc(cap *CapstoneParser) {
 	}
 }
 
-func parsePLT0(cap *CapstoneParser, insns []gcs.Instruction) int {
-	var idx int
-
-	fn := new(DasFunc)
-	fn.name = "<plt0>"
-	fn.start = int64(insns[0].Address)
-
-	funcs = append(funcs, fn)
-	syms[uint64(fn.start)] = fn.name
-
-	dl := cap.decoder.Capstone(insns[0], elf.Symbol{})
-	fn.insn = append(fn.insn, dl)
-
-	for idx = 1; insns[idx].Address & 0xf != 0; idx++ {
-		dl = cap.decoder.Capstone(insns[idx], elf.Symbol{})
-		fn.insn = append(fn.insn, dl)
-
-		if str.HasPrefix(dl.mnemonic, "j") {
-			dl.optype = OPTYPE_BRANCH
-		}
-	}
-
-	return idx
-}
-
-func parsePLTEntry(cap *CapstoneParser, insns []gcs.Instruction, idx int) int {
-	fn := new(DasFunc)
-	fn.start = int64(insns[idx].Address)
-
-	funcs = append(funcs, fn)
-
-	for i := 0; i < 3; i++ {
-		insn := insns[idx + i]
-
-		if i == 0 && insn.OpStr[0] == '*' && str.HasSuffix(insn.OpStr, "(%rip)") {
-			imm, _ := scv.ParseUint(insn.OpStr[1:len(insn.OpStr)-6], 0, 64)
-			imm += uint64(insn.Address)
-			imm += uint64(insn.Size)
-
-			// update function name using reloc info
-			if name, ok := relocs[imm]; ok {
-				fn.name = fmt.Sprintf("<%s@plt>", name)
-				syms[uint64(fn.start)] = fn.name
-			}
-		}
-
-		dl := cap.decoder.Capstone(insn, elf.Symbol{})
-		fn.insn = append(fn.insn, dl)
-	}
-
-	return 3
-}
-
-func parsePLT(cap *CapstoneParser) {
-	for _, sec := range cap.elf.Sections {
-		if sec.Name != ".plt" {
-			continue
-		}
-
-		buf, err := sec.Data()
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		insns, err := cap.engine.Disasm(buf, sec.Addr, 0)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		idx := parsePLT0(cap, insns)
-
-		for idx < len(insns) {
-			idx += parsePLTEntry(cap, insns, idx)
-		}
-		break
-	}
-}
-
 func parseCapstone(cap *CapstoneParser) {
 	symtab, err := cap.elf.Symbols()
 	if err != nil {
@@ -245,7 +165,8 @@ func parseCapstone(cap *CapstoneParser) {
 	}
 
 	parseReloc(cap)
-	parsePLT(cap)
+
+	cap.decoder.ParsePLT(cap)
 
 	for _, sym := range symtab {
 		if elf.ST_TYPE(sym.Info) != elf.STT_FUNC {
