@@ -141,7 +141,35 @@ func (o DasOpsAArch64) parsePLT() {
 }
 
 func (o DasOpsAArch64) describe(insn *DasLine) string {
-	return "xxx"
+	name := insn.mnemonic
+	desc := Insn_AArch64[name]
+	if len(desc) > 0 {
+		return desc
+	}
+
+	namelen := len(name)
+	if name[namelen-1] == 's' {
+		cname := name[:namelen-1]
+
+		for _, csi := range CondSetInsn_AArch64 {
+			if cname == csi {
+				desc = Insn_AArch64[csi]
+			}
+		}
+		if len(desc) > 0 {
+			return fmt.Sprintf("%s, Set condition flags", desc)
+		}
+	}
+
+	if str.HasPrefix(name, "b.") {
+		for cc, cdesc := range Cond_AArch64 {
+			if name[2:] == cc {
+				return fmt.Sprintf("Branch If %s", cdesc)
+			}
+		}
+	}
+
+	return "unknown"
 }
 
 func getArchOpsAArch64(p *DasParser) DasArchOps {
