@@ -357,8 +357,8 @@ func parseCapstone(e *elf.File, engine gcs.Engine) {
 		sec := e.Sections[sym.Section]
 		buf, err := sec.Data()
 
-		sym_start := sym.Value - sec.Addr;
-		insns, err := engine.Disasm(buf[sym_start:sym_start + sym.Size], sym.Value, 0)
+		sym_start := sym.Value - sec.Addr
+		insns, err := engine.Disasm(buf[sym_start:sym_start+sym.Size], sym.Value, 0)
 		if err != nil {
 			fmt.Printf("Capstone disasm failed for %s\n", sym.Name)
 			continue

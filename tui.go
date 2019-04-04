@@ -1,7 +1,7 @@
 /*
  * DAS - DisASsembler (not for MB)
  *
- * Copyright (C) 2017-2018  Namhyung Kim <namhyung@gmail.com>
+ * Copyright (C) 2017-2019  Namhyung Kim <namhyung@gmail.com>
  *
  * Released under MIT license.
  */
@@ -10,19 +10,25 @@ package main
 import (
 	"fmt"
 	tui "github.com/gizak/termui"
+	"image"
 	scv "strconv"
 	str "strings"
+)
+
+const (
+	// text styles
+	normal = iota
+	focus
+	special
 )
 
 type DasView struct {
 	tui.Block // embedded
 
-	fg_normal  tui.Attribute
-	bg_normal  tui.Attribute
-	fg_focus   tui.Attribute
-	bg_focus   tui.Attribute
-	fg_special tui.Attribute
-	bg_special tui.Attribute
+	Height int
+	Width  int
+
+	styles [3]tui.Style
 
 	top   int
 	cur   int
@@ -40,9 +46,11 @@ type DasView struct {
 type DasStatus struct {
 	tui.Block // embedded
 
-	fg   tui.Attribute
-	bg   tui.Attribute
-	line string
+	Height int
+	Width  int
+
+	style tui.Style
+	line  string
 }
 
 type DasHist struct {
@@ -150,12 +158,13 @@ func insnStat(arg interface{}) string {
 	}
 }
 
-func (dv *DasView) Buffer() tui.Buffer {
-	buf := dv.Block.Buffer()
+func (dv *DasView) Draw(buf *tui.Buffer) {
+	// erase entire buffer
+	buf.Fill(tui.NewCell(' ', dv.styles[normal]), dv.GetRect())
 
-	var fg, bg tui.Attribute
+	// draw borders
+	dv.Block.Draw(buf)
 
-	x := 0
 	y := 0
 
 	for i, dl := range dv.line {
@@ -163,86 +172,46 @@ func (dv *DasView) Buffer() tui.Buffer {
 			continue
 		}
 
+		var st tui.Style
+
 		if i == dv.cur {
-			fg = dv.fg_focus
-			bg = dv.bg_focus
+			st = dv.styles[focus]
 		} else {
-			fg = dv.fg_normal
-			bg = dv.bg_normal
+			st = dv.styles[normal]
 
 			if dv.insn {
 				insn := dl.(*DasLine)
 
 				if insn.optype == OPTYPE_BRANCH ||
 					insn.optype == OPTYPE_RETURN {
-					fg = dv.fg_special
-					bg = dv.bg_special
+					st = dv.styles[special]
 				}
 			} else {
 				fun := dl.(*DasFunc)
 
 				if fun.sect {
-					fg = dv.fg_special
-					bg = dv.bg_special
+					st = dv.styles[special]
 				}
 			}
 		}
 
 		ls := dv.msg(dl)
-		cs := tui.DefaultTxBuilder.Build(ls, fg, bg)
-		cs = tui.DTrimTxCls(cs, dv.Block.Width)
-
-		x = 0
-		for _, vv := range cs {
-			w := vv.Width()
-			buf.Set(x+1, y+1, vv)
-			x += w
-		}
-
-		// fill cursor to the end
-		cs = tui.DefaultTxBuilder.Build(" ", fg, bg)
-		for x < dv.Width-2 {
-			for _, vv := range cs {
-				w := vv.Width()
-				buf.Set(x+1, y+1, vv)
-				x += w
-			}
-		}
+		buf.SetString(ls, st, image.Pt(1, y+1))
+		buf.Fill(tui.NewCell(' ', st), image.Rect(len(ls)+1, y+1, dv.Dx()-1, y+2))
 
 		y++
 
-		if y == dv.Height-2 {
+		if y == dv.Max.Y-2 {
 			break
 		}
 	}
 
 	sl.line = dv.stat(dv.line[dv.cur])
-	return buf
 }
 
-func (ds *DasStatus) Buffer() tui.Buffer {
-	buf := ds.Block.Buffer()
-
-	cs := tui.DefaultTxBuilder.Build(ds.line, ds.fg, ds.bg)
-	cs = tui.DTrimTxCls(cs, ds.Block.Width)
-
-	x := 0
-	for _, vv := range cs {
-		w := vv.Width()
-		buf.Set(x, ds.Y, vv)
-		x += w
-	}
-
-	// fill status line to the end
-	cs = tui.DefaultTxBuilder.Build(" ", ds.fg, ds.bg)
-	for x < ds.Width {
-		for _, vv := range cs {
-			w := vv.Width()
-			buf.Set(x, ds.Y, vv)
-			x += w
-		}
-	}
-	return buf
+func (ds *DasStatus) Draw(buf *tui.Buffer) {
+	buf.Fill(tui.NewCell(' ', ds.style), ds.GetRect())
+	buf.SetString(ds.line, ds.style, ds.Min)
 }
 
 func update(dv *DasView) {
@@ -524,7 +493,7 @@ func push(fun *DasFunc, top, cur int, fv, iv *DasView) {
 	iv.top = 0
 	iv.cur = 0
 	iv.off = fun.start
-	iv.BorderLabel = fun.name
+	iv.Title = fun.name
 
 	iv.line = make([]interface{}, len(fun.insn))
 	for i, l := range fun.insn {
@@ -554,7 +523,7 @@ func pop(fv, iv *DasView) {
 	iv.top = h.itop
 	iv.cur = h.icur
 	iv.off = h.fun.start
-	iv.BorderLabel = h.fun.name
+	iv.Title = h.fun.name
 
 	iv.line = make([]interface{}, len(h.fun.insn))
 	for i, l := range h.fun.insn {
@@ -666,7 +635,8 @@ func list(dv *DasView) {
 
 func addSearch(key string) {
 	switch key {
-	case "C-8":
+	case "<Backspace>":
+	case "<C-<Backspace>>":
 		backspace(cv)
 
 	case "<space>":
@@ -705,12 +675,15 @@ func arrowMode(dv *DasView) {
 }
 
 func resize(dv *DasView) {
-	dv.Width = tui.TermWidth()
-	dv.Height = tui.TermHeight() - 1
+	w, h := tui.TerminalDimensions()
 
-	sl.Width = tui.TermWidth()
+	dv.Width = w - 1
+	dv.Height = h - 1
+	dv.SetRect(0, 0, w, h-1)
+
+	sl.Width = w
 	sl.Height = 1
-	sl.Y = tui.TermHeight() - 1
+	sl.SetRect(0, h-1, w, h)
 }
 
 func render(dv *DasView) {
@@ -725,18 +698,22 @@ func ShowTUI(file_name string) {
 	}
 	defer tui.Close()
 
+	text_styles := [3]tui.Style{tui.NewStyle(tui.ColorWhite, tui.ColorBlack),
+		tui.NewStyle(tui.ColorWhite, tui.ColorBlue, tui.ModifierBold),
+		tui.NewStyle(tui.ColorYellow, tui.ColorBlack)}
+	title_style := tui.NewStyle(tui.ColorGreen, tui.ColorBlack)
+	status_style := tui.NewStyle(tui.ColorBlack, tui.ColorWhite)
+
 	// function viewer
 	fv := &DasView{
-		Block:      *tui.NewBlock(),
-		fg_normal:  tui.ColorWhite,
-		bg_normal:  tui.ColorBlack,
-		fg_focus:   tui.ColorYellow,
-		bg_focus:   tui.ColorBlue,
-		fg_special: tui.ColorYellow,
-		bg_special: tui.ColorBlack,
-		msg:        funcMsg,
-		stat:       funcStat,
+		Block:  *tui.NewBlock(),
+		styles: text_styles,
+		msg:    funcMsg,
+		stat:   funcStat,
 	}
+
+	fv.Title = "DAS: " + file_name
+	fv.TitleStyle = title_style
 
 	fv.line = make([]interface{}, len(funcs))
 	for i, f := range funcs {
@@ -745,128 +722,77 @@ func ShowTUI(file_name string) {
 
 	// insn viewer
 	iv := &DasView{
-		Block:      *tui.NewBlock(),
-		fg_normal:  tui.ColorWhite,
-		bg_normal:  tui.ColorBlack,
-		fg_focus:   tui.ColorYellow,
-		bg_focus:   tui.ColorBlue,
-		fg_special: tui.ColorYellow,
-		bg_special: tui.ColorBlack,
-		insn:       true,
-		msg:        insnMsg,
-		stat:       insnStat,
+		Block:  *tui.NewBlock(),
+		styles: text_styles,
+		insn:   true,
+		msg:    insnMsg,
+		stat:   insnStat,
 	}
-
-	fv.BorderLabel = "DAS: " + file_name
+	iv.TitleStyle = title_style
 
 	// status line
 	sl = &DasStatus{
 		Block: *tui.NewBlock(),
-		fg:    tui.ColorBlack,
-		bg:    tui.ColorWhite,
+		style: status_style,
 	}
 
 	cv = fv
 	resize(cv)
 	render(cv)
 
+	evt := tui.PollEvents()
+	done := false
+
 	// handle key pressing
-	tui.Handle("/sys/kbd/q", func(tui.Event) {
-		if search {
-			addSearch("q")
-			render(cv)
-			return
-		}
-		// press q to quit
-		tui.StopLoop()
-	})
+	for !done {
+		e := <-evt
 
-	tui.Handle("/sys/kbd/C-c", func(tui.Event) {
-		// press Ctrl-C to quit
-		tui.StopLoop()
-	})
-
-	tui.Handle("/sys/kbd/<up>", func(tui.Event) {
-		up(cv)
-		render(cv)
-	})
-
-	tui.Handle("/sys/kbd/<down>", func(tui.Event) {
-		down(cv)
-		render(cv)
-	})
-
-	tui.Handle("/sys/kbd/<previous>", func(e tui.Event) {
-		pageUp(cv)
-		render(cv)
-	})
-
-	tui.Handle("/sys/kbd/<next>", func(e tui.Event) {
-		pageDown(cv)
-		render(cv)
-	})
-
-	tui.Handle("/sys/kbd/<home>", func(e tui.Event) {
-		home(cv)
-		render(cv)
-	})
-
-	tui.Handle("/sys/kbd/<end>", func(e tui.Event) {
-		end(cv)
-		render(cv)
-	})
-
-	tui.Handle("/sys/wnd/resize", func(tui.Event) {
-		resize(cv)
-		render(cv)
-	})
-
-	tui.Handle("/sys/kbd/<enter>", func(tui.Event) {
-		enter(fv, iv)
-		render(cv)
-	})
-
-	tui.Handle("/sys/kbd/<escape>", func(tui.Event) {
-		escape(fv, iv)
-		render(cv)
-	})
-
-	tui.Handle("/sys/kbd/<backspace>", func(tui.Event) {
-		backspace(cv)
-		render(cv)
-	})
-
-	tui.Handle("/sys/kbd/v", func(tui.Event) {
-		rawMode(cv)
-		render(cv)
-	})
-
-	tui.Handle("/sys/kbd/l", func(tui.Event) {
-		list(fv)
-		render(fv)
-	})
-
-	tui.Handle("/sys/kbd/n", func(tui.Event) {
-		nextSearch(fv)
-		render(fv)
-	})
-
-	tui.Handle("/sys/kbd/p", func(tui.Event) {
-		prevSearch(fv)
-		render(fv)
-	})
-
-	tui.Handle("/sys/kbd", func(e tui.Event) {
-		kev := e.Data.(tui.EvtKbd)
-
-		if !search && cv == fv && kev.KeyStr == "/" {
-			sname = "" // clear previous search
-			search = true
-		} else if search {
-			addSearch(kev.KeyStr)
+		switch e.ID {
+		case "q":
+			if search {
+				addSearch("q")
+				render(cv)
+				continue
+			}
+			fallthrough
+		case "<C-c>":
+			done = true
+		case "<Up>":
+			up(cv)
+		case "<Down>":
+			down(cv)
+		case "<Previous>":
+			pageUp(cv)
+		case "<Next>":
+			pageDown(cv)
+		case "<Home>":
+			home(cv)
+		case "<End>":
+			end(cv)
+		case "<Resize>":
+			resize(cv)
+		case "<Enter>":
+			enter(fv, iv)
+		case "<Escape>":
+			escape(fv, iv)
+		case "<Backspace>":
+			backspace(cv)
+		case "v":
+			rawMode(cv)
+		case "l":
+			list(fv)
+		case "n":
+			nextSearch(fv)
+		case "p":
+			prevSearch(fv)
+		default:
+			if !search && cv == fv && e.ID == "/" {
+				sname = "" // clear previous search
+				search = true
+			} else if search {
+				addSearch(e.ID)
+			}
 		}
 		render(cv)
-	})
-
-	tui.Loop()
+	}
 }
