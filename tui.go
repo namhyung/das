@@ -755,9 +755,9 @@ func ShowTUI(p *DasParser) {
 			fallthrough
 		case "<C-c>":
 			done = true
-		case "<Up>":
+		case "<Up>", "k":
 			up(cv)
-		case "<Down>":
+		case "<Down>", "j":
 			down(cv)
 		case "<Previous>":
 			pageUp(cv)
