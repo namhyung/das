@@ -424,8 +424,15 @@ func find(dv *DasView, name string) (*DasFunc, int, int) {
 }
 
 func doSearch(dv *DasView) {
+	orig := dv.cur
 	dv.cur = -1
+
 	nextSearch(dv)
+
+	// restore original index if not found
+	if dv.cur == -1 {
+		dv.cur = orig
+	}
 }
 
 func prevSearch(dv *DasView) {
