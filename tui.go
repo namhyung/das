@@ -699,7 +699,7 @@ func render(dv *DasView) {
 	tui.Render(sl)
 }
 
-func ShowTUI(file_name string) {
+func ShowTUI(p *DasParser) {
 	if err := tui.Init(); err != nil {
 		panic(err)
 	}
@@ -719,7 +719,7 @@ func ShowTUI(file_name string) {
 		stat:   funcStat,
 	}
 
-	fv.Title = "DAS: " + file_name
+	fv.Title = "DAS: " + p.name
 	fv.TitleStyle = title_style
 
 	fv.line = make([]interface{}, len(funcs))

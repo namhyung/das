@@ -9,8 +9,11 @@ package main
 
 import (
 	"bytes"
+	"debug/elf"
 	"flag"
+	gcs "github.com/bnagy/gapstone"
 	"log"
+	"os"
 )
 
 const (
@@ -39,6 +42,13 @@ type DasFunc struct {
 	insn  []*DasLine
 }
 
+type DasParser struct {
+	name   string
+	file   *os.File
+	elf    *elf.File
+	engine *gcs.Engine
+}
+
 var (
 	funcs      []*DasFunc
 	csect      *DasFunc         // current section
@@ -51,6 +61,26 @@ func init() {
 	flag.BoolVar(&capstone, "c", false, "Use capstone disassembler")
 }
 
+func initDasParser(target string) *DasParser {
+	f, err := os.Open(target)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	e, err := elf.NewFile(f)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return &DasParser{name: target, file: f, elf: e}
+}
+
+func finishDasParser(p *DasParser) {
+	p.engine.Close()
+	p.elf.Close()
+	p.file.Close()
+}
+
 func main() {
 	flag.Parse()
 
@@ -60,14 +90,11 @@ func main() {
 	}
 
 	target := args[0]
+	p := initDasParser(target)
 
 	if capstone {
-		f, e, engine := prepareCapstone(target)
-		defer engine.Close()
-		defer e.Close()
-		defer f.Close()
-
-		parseCapstone(e, engine)
+		prepareCapstone(p)
+		parseCapstone(p)
 	} else {
 		var buf *bytes.Buffer
 
@@ -78,5 +105,7 @@ func main() {
 		parseObjdump(buf)
 	}
 
-	ShowTUI(target)
+	ShowTUI(p)
+
+	finishDasParser(p)
 }

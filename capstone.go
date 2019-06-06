@@ -7,7 +7,6 @@ import (
 	"fmt"
 	gcs "github.com/bnagy/gapstone"
 	"log"
-	"os"
 	"sort"
 	scv "strconv"
 	str "strings"
@@ -37,21 +36,11 @@ func (arr FuncSlice) Swap(i, j int) {
 	arr[i], arr[j] = arr[j], arr[i]
 }
 
-func prepareCapstone(target string) (*os.File, *elf.File, gcs.Engine) {
-	f, err := os.Open(target)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	e, err := elf.NewFile(f)
-	if err != nil {
-		log.Fatal(err)
-	}
-
+func prepareCapstone(p *DasParser) {
 	var arch int
 	var mode uint
 
-	switch e.Machine {
+	switch p.elf.Machine {
 	case elf.EM_X86_64:
 		arch = gcs.CS_ARCH_X86
 		mode = gcs.CS_MODE_64
@@ -75,7 +64,7 @@ func prepareCapstone(target string) (*os.File, *elf.File, gcs.Engine) {
 
 	engine.SetOption(gcs.CS_OPT_SYNTAX, gcs.CS_OPT_SYNTAX_ATT)
 
-	return f, e, engine
+	p.engine = &engine
 }
 
 func makeRawline(dl *DasLine, insn gcs.Instruction, comment string) {
@@ -161,13 +150,13 @@ func parseCapstoneInsn(insn gcs.Instruction, sym elf.Symbol) *DasLine {
 	return dl
 }
 
-func parseReloc(e *elf.File, engine gcs.Engine) {
-	symtab, err := e.DynamicSymbols()
+func parseReloc(p *DasParser) {
+	symtab, err := p.elf.DynamicSymbols()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	for _, sec := range e.Sections {
+	for _, sec := range p.elf.Sections {
 		if sec.Type != elf.SHT_REL && sec.Type != elf.SHT_RELA {
 			continue
 		}
@@ -186,13 +175,13 @@ func parseReloc(e *elf.File, engine gcs.Engine) {
 
 			data = bytes.NewBuffer(buf[i : i+esize])
 
-			if e.Data == elf.ELFDATA2LSB {
+			if p.elf.Data == elf.ELFDATA2LSB {
 				endian = binary.LittleEndian
 			} else {
 				endian = binary.BigEndian
 			}
 
-			if e.Class == elf.ELFCLASS64 {
+			if p.elf.Class == elf.ELFCLASS64 {
 				if sec.Type == elf.SHT_RELA {
 					reloc := elf.Rela64{}
 					binary.Read(data, endian, &reloc)
@@ -304,8 +293,8 @@ func parsePLTEntry(insns []gcs.Instruction, idx int) int {
 	return 3
 }
 
-func parsePLT(e *elf.File, engine gcs.Engine) {
-	for _, sec := range e.Sections {
+func parsePLT(p *DasParser) {
+	for _, sec := range p.elf.Sections {
 		if sec.Name != ".plt" {
 			continue
 		}
@@ -315,7 +304,7 @@ func parsePLT(e *elf.File, engine gcs.Engine) {
 			log.Fatal(err)
 		}
 
-		insns, err := engine.Disasm(buf, sec.Addr, 0)
+		insns, err := p.engine.Disasm(buf, sec.Addr, 0)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -329,8 +318,8 @@ func parsePLT(e *elf.File, engine gcs.Engine) {
 	}
 }
 
-func parseCapstone(e *elf.File, engine gcs.Engine) {
-	symtab, err := e.Symbols()
+func parseCapstone(p *DasParser) {
+	symtab, err := p.elf.Symbols()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -342,8 +331,8 @@ func parseCapstone(e *elf.File, engine gcs.Engine) {
 		syms[sym.Value] = fmt.Sprintf("<%s>", sym.Name)
 	}
 
-	parseReloc(e, engine)
-	parsePLT(e, engine)
+	parseReloc(p)
+	parsePLT(p)
 
 	for _, sym := range symtab {
 		if elf.ST_TYPE(sym.Info) != elf.STT_FUNC {
@@ -354,11 +343,11 @@ func parseCapstone(e *elf.File, engine gcs.Engine) {
 			continue
 		}
 
-		sec := e.Sections[sym.Section]
+		sec := p.elf.Sections[sym.Section]
 		buf, err := sec.Data()
 
 		sym_start := sym.Value - sec.Addr
-		insns, err := engine.Disasm(buf[sym_start:sym_start+sym.Size], sym.Value, 0)
+		insns, err := p.engine.Disasm(buf[sym_start:sym_start+sym.Size], sym.Value, 0)
 		if err != nil {
 			fmt.Printf("Capstone disasm failed for %s\n", sym.Name)
 			continue
@@ -385,9 +374,9 @@ func parseCapstone(e *elf.File, engine gcs.Engine) {
 		fn := funcs[i]
 		addr := uint64(fn.start)
 
-		if secidx == -1 || e.Sections[secidx].Addr+e.Sections[secidx].Size <= addr {
-			for secidx++; secidx < len(e.Sections); secidx++ {
-				sec := e.Sections[secidx]
+		if secidx == -1 || p.elf.Sections[secidx].Addr+p.elf.Sections[secidx].Size <= addr {
+			for secidx++; secidx < len(p.elf.Sections); secidx++ {
+				sec := p.elf.Sections[secidx]
 				if (sec.Flags & elf.SHF_EXECINSTR) == 0 {
 					continue
 				}
