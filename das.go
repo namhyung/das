@@ -47,6 +47,12 @@ type DasParser struct {
 	file   *os.File
 	elf    *elf.File
 	engine *gcs.Engine
+	ops    DasArchOps
+}
+
+type DasArchOps interface {
+	parsePLT()
+	parseInsn(gcs.Instruction, elf.Symbol) *DasLine
 }
 
 var (
@@ -94,6 +100,10 @@ func main() {
 
 	if capstone {
 		prepareCapstone(p)
+		if p.ops == nil {
+			log.Fatal("Architecture not supported (yet)!")
+		}
+
 		parseCapstone(p)
 	} else {
 		var buf *bytes.Buffer
