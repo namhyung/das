@@ -52,6 +52,7 @@ func prepareCapstone(p *DasParser) {
 	case elf.EM_AARCH64:
 		arch = gcs.CS_ARCH_ARM64
 		mode = gcs.CS_MODE_ARM
+		p.ops = getArchOpsAArch64(p)
 	default:
 		log.Fatal("Unsupported Architect\n")
 	}
