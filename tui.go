@@ -39,8 +39,9 @@ type DasView struct {
 	miw   int // max insn width
 	mow   int // max opcode width
 	line  []interface{}
-	msg   func(interface{}) string
-	stat  func(interface{}) string
+	msg   func(*DasParser, interface{}) string
+	stat  func(*DasParser, interface{}) string
+	dp    *DasParser
 }
 
 type DasStatus struct {
@@ -70,7 +71,7 @@ var (
 	smove   bool   // move by search
 )
 
-func funcMsg(arg interface{}) string {
+func funcMsg(p *DasParser, arg interface{}) string {
 	df := arg.(*DasFunc)
 	if df.sect {
 		fold_sign := "-"
@@ -83,7 +84,7 @@ func funcMsg(arg interface{}) string {
 	}
 }
 
-func insnMsg(arg interface{}) string {
+func insnMsg(p *DasParser, arg interface{}) string {
 	var ls string
 
 	dl := arg.(*DasLine)
@@ -122,7 +123,7 @@ func insnMsg(arg interface{}) string {
 	return ls
 }
 
-func funcStat(arg interface{}) string {
+func funcStat(p *DasParser, arg interface{}) string {
 	if search {
 		return "search: " + sname
 	}
@@ -195,7 +196,7 @@ func (dv *DasView) Draw(buf *tui.Buffer) {
 			}
 		}
 
-		ls := dv.msg(dl)
+		ls := dv.msg(dv.dp, dl)
 		buf.SetString(ls, st, image.Pt(1, y+1))
 		buf.Fill(tui.NewCell(' ', st), image.Rect(len(ls)+1, y+1, dv.Dx()-1, y+2))
 
@@ -206,7 +207,7 @@ func (dv *DasView) Draw(buf *tui.Buffer) {
 		}
 	}
 
-	sl.line = dv.stat(dv.line[dv.cur])
+	sl.line = dv.stat(dv.dp, dv.line[dv.cur])
 }
 
 func (ds *DasStatus) Draw(buf *tui.Buffer) {
@@ -717,6 +718,7 @@ func ShowTUI(p *DasParser) {
 		styles: text_styles,
 		msg:    funcMsg,
 		stat:   funcStat,
+		dp:     p,
 	}
 
 	fv.Title = "DAS: " + p.name
@@ -734,6 +736,7 @@ func ShowTUI(p *DasParser) {
 		insn:   true,
 		msg:    insnMsg,
 		stat:   insnStat,
+		dp:     p,
 	}
 	iv.TitleStyle = title_style
 
