@@ -676,7 +676,7 @@ func arrowMode(dv *DasView) {
 	}
 
 	dl := dv.line[dv.cur].(*DasLine)
-	if str.HasPrefix(dl.mnemonic, "j") && str.HasPrefix(dl.args, "0x") {
+	if dl.optype == OPTYPE_BRANCH && dl.local {
 		dv.arrow = true
 	}
 }
