@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"debug/elf"
 	"flag"
+	"fmt"
 	gcs "github.com/bnagy/gapstone"
 	"log"
 	"os"
@@ -53,6 +54,7 @@ type DasParser struct {
 type DasArchOps interface {
 	parsePLT()
 	parseInsn(gcs.Instruction, elf.Symbol) *DasLine
+	describe(insn *DasLine) string
 }
 
 var (
@@ -85,6 +87,14 @@ func finishDasParser(p *DasParser) {
 	p.engine.Close()
 	p.elf.Close()
 	p.file.Close()
+}
+
+func describeInsn(p *DasParser, insn *DasLine) string {
+	if p.ops != nil {
+		return fmt.Sprintf("%s: %s (%s)", "instruction",
+			insn.mnemonic, p.ops.describe(insn))
+	}
+	return "instruction: " + insn.mnemonic
 }
 
 func main() {

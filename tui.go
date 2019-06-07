@@ -143,20 +143,8 @@ func funcStat(p *DasParser, arg interface{}) string {
 	return s
 }
 
-func insnStat(arg interface{}) string {
-	dl := arg.(*DasLine)
-	desc := LookupInsn(dl.mnemonic)
-
-	if len(desc) > 0 {
-		// there are two kinds of 'movsd' instructios
-		if dl.mnemonic == "movsd" && str.Contains(dl.args, "%xmm") {
-			desc = "Move Scalar Double-Precision Floating-Point Values"
-		}
-
-		return fmt.Sprintf("%s: %s (%s)", "instruction", dl.mnemonic, desc)
-	} else {
-		return "instruction: " + dl.mnemonic
-	}
+func insnStat(p *DasParser, arg interface{}) string {
+	return describeInsn(p, arg.(*DasLine))
 }
 
 func (dv *DasView) Draw(buf *tui.Buffer) {
