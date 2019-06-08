@@ -142,6 +142,8 @@ func (o DasOpsAArch64) parsePLT() {
 
 func (o DasOpsAArch64) describe(insn *DasLine) string {
 	name := insn.mnemonic
+
+	// check core instructions
 	desc := Insn_AArch64[name]
 	if len(desc) > 0 {
 		return desc
@@ -165,6 +167,29 @@ func (o DasOpsAArch64) describe(insn *DasLine) string {
 		for cc, cdesc := range Cond_AArch64 {
 			if name[2:] == cc {
 				return fmt.Sprintf("Branch If %s", cdesc)
+			}
+		}
+	}
+
+	// check Floating-Point and SIMD instructions
+	desc = SIMDInsn_AArch64[name]
+	if len(desc) > 0 {
+		return desc
+	}
+
+	// check instructions with condition suffix
+	if len(name) > 2 {
+		cname := name[:namelen-2]
+		for _, csi := range CondSIMDInsn_AArch64 {
+			if cname == csi {
+				desc = SIMDInsn_AArch64[csi]
+			}
+		}
+		if len(desc) > 0 {
+			for cc, cdesc := range Cond_AArch64 {
+				if name[namelen-2:] == cc {
+					return fmt.Sprintf("%s %s", desc, cdesc)
+				}
 			}
 		}
 	}
