@@ -42,6 +42,8 @@ func (o DasOpsAArch64) parseInsn(insn gcs.Instruction, sym elf.Symbol) *DasLine 
 				}
 			}
 		}
+	} else if dl.mnemonic == "ret" {
+		dl.optype = OPTYPE_RETURN
 	}
 
 	makeRawline(dl, insn, comment)
