@@ -63,6 +63,7 @@ func prepareCapstone(p *DasParser) {
 	}
 
 	engine.SetOption(gcs.CS_OPT_SYNTAX, gcs.CS_OPT_SYNTAX_ATT)
+	engine.SetOption(gcs.CS_OPT_DETAIL, gcs.CS_OPT_ON)
 
 	p.engine = &engine
 }
