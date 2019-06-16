@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"debug/elf"
 	"fmt"
 	"log"
 	"os/exec"
@@ -199,4 +200,21 @@ func runCommand(name string, args ...string) *bytes.Buffer {
 	}
 
 	return outbuf
+}
+
+func setupArchOps(p *DasParser) {
+	switch p.elf.Machine {
+	case elf.EM_X86_64:
+		p.ops = getArchOpsX86(p)
+	case elf.EM_386:
+		p.ops = getArchOpsX86(p)
+	case elf.EM_ARM:
+		// FIXME
+		p.ops = getArchOpsAArch64(p)
+	case elf.EM_AARCH64:
+		p.ops = getArchOpsAArch64(p)
+	default:
+		log.Fatal("Unsupported Architect\n")
+	}
+
 }

@@ -126,6 +126,9 @@ func main() {
 
 		buf = runCommand("objdump", "-d", "-C", target)
 		parseObjdump(buf)
+
+		// for ops.describe()
+		setupArchOps(p)
 	}
 
 	ShowTUI(p)
