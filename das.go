@@ -84,7 +84,9 @@ func initDasParser(target string) *DasParser {
 }
 
 func finishDasParser(p *DasParser) {
-	p.engine.Close()
+	if p.engine != nil {
+		p.engine.Close()
+	}
 	p.elf.Close()
 	p.file.Close()
 }
