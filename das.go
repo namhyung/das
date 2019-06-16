@@ -15,6 +15,7 @@ import (
 	gcs "github.com/bnagy/gapstone"
 	"log"
 	"os"
+	str "strings"
 )
 
 const (
@@ -94,9 +95,9 @@ func finishDasParser(p *DasParser) {
 func describeInsn(p *DasParser, insn *DasLine) string {
 	if p.ops != nil {
 		return fmt.Sprintf("%s: %s (%s)", "instruction",
-			insn.mnemonic, p.ops.describe(insn))
+			str.ToUpper(insn.mnemonic), p.ops.describe(insn))
 	}
-	return "instruction: " + insn.mnemonic
+	return "instruction: " + str.ToUpper(insn.mnemonic)
 }
 
 func main() {
