@@ -3,6 +3,7 @@ package main
 import (
 	"debug/elf"
 	"fmt"
+	scv "strconv"
 	str "strings"
 )
 
@@ -50,7 +51,50 @@ func describeX86Insn(name, args string) string {
 }
 
 func (o DasOpsX86) parseInsn(insn interface{}, sym *elf.Symbol) *DasLine {
-	return &DasLine{}
+	dl := new(DasLine)
+
+	raw_line := insn.(string)
+	dl.rawline = raw_line
+
+	tmp := str.SplitN(raw_line, " ", 2)
+	dl.mnemonic = tmp[0]
+
+	if str.HasPrefix(dl.mnemonic, "ret") {
+		dl.optype = OPTYPE_RETURN
+	}
+
+	if len(tmp) == 1 {
+		return dl
+	}
+
+	dl.args = str.TrimSpace(tmp[1])
+
+	if str.Index(dl.args, "#") != -1 {
+		tmp = str.Split(dl.args, "#")
+		dl.args = str.TrimSpace(tmp[0])
+		dl.comment = str.TrimSpace(tmp[1])
+	}
+
+	if str.HasPrefix(dl.mnemonic, "j") ||
+		str.HasPrefix(dl.mnemonic, "call") {
+		dl.optype = OPTYPE_BRANCH
+
+		tmp = str.Split(dl.args, " ")
+		if len(tmp) == 2 {
+			dl.target, _ = scv.ParseInt(tmp[0], 16, 64)
+			dl.args = tmp[1]
+
+			// if it's a jump in a same function, just save the offset
+			if str.HasPrefix(dl.args, sym.Name[0:len(sym.Name)-1]) &&
+				(dl.args[len(sym.Name)-1] == '+' ||
+					dl.args[len(sym.Name)-1] == '>') {
+				dl.args = fmt.Sprintf("%#x", dl.target-int64(sym.Value))
+				dl.local = true
+			}
+		}
+	}
+
+	return dl
 }
 
 func (o DasOpsX86) parsePLT() {

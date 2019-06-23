@@ -10,49 +10,7 @@ import (
 	str "strings"
 )
 
-func parseObjdumpInsn(df *DasFunc, dl *DasLine, raw_line string) {
-	dl.rawline = raw_line
-
-	tmp := str.SplitN(raw_line, " ", 2)
-	dl.mnemonic = tmp[0]
-
-	if str.HasPrefix(dl.mnemonic, "ret") {
-		dl.optype = OPTYPE_RETURN
-	}
-
-	if len(tmp) == 1 {
-		return
-	}
-
-	dl.args = str.TrimSpace(tmp[1])
-
-	if str.Index(dl.args, "#") != -1 {
-		tmp = str.Split(dl.args, "#")
-		dl.args = str.TrimSpace(tmp[0])
-		dl.comment = str.TrimSpace(tmp[1])
-	}
-
-	if str.HasPrefix(dl.mnemonic, "j") ||
-		str.HasPrefix(dl.mnemonic, "call") {
-		dl.optype = OPTYPE_BRANCH
-
-		tmp = str.Split(dl.args, " ")
-		if len(tmp) == 2 {
-			dl.target, _ = scv.ParseInt(tmp[0], 16, 64)
-			dl.args = tmp[1]
-
-			// if it's a jump in a same function, just save the offset
-			if str.HasPrefix(dl.args, df.name[0:len(df.name)-1]) &&
-				(dl.args[len(df.name)-1] == '+' ||
-					dl.args[len(df.name)-1] == '>') {
-				dl.args = fmt.Sprintf("%#x", dl.target-df.start)
-				dl.local = true
-			}
-		}
-	}
-}
-
-func parseFunction(b *bytes.Buffer, name, offset string) *DasFunc {
+func parseFunction(p *DasParser, b *bytes.Buffer, name, offset string) *DasFunc {
 	var err error
 	df := new(DasFunc)
 	df.name = str.TrimSuffix(name, ":\n")
@@ -86,29 +44,28 @@ func parseFunction(b *bytes.Buffer, name, offset string) *DasFunc {
 		line_arr := str.SplitN(line, ":", 2)
 		insn_arr := str.Split(line_arr[1], "\t")
 
-		dl := new(DasLine)
-		dl.offset, err = scv.ParseInt(line_arr[0], 16, 64)
-		dl.opcode = insn_arr[1]
-
 		if len(insn_arr) > 2 {
-			parseObjdumpInsn(df, dl, insn_arr[2])
+			sym := elf.Symbol{Name: df.name, Value: uint64(df.start)}
+			dl := p.ops.parseInsn(insn_arr[2], &sym)
+			dl.offset, err = scv.ParseInt(line_arr[0], 16, 64)
+			dl.opcode = insn_arr[1]
 
 			df.insn = append(df.insn, dl)
+
+			if lastOffset < dl.offset {
+				lastOffset = dl.offset
+			}
 		} else {
 			// leftover from the previous insn, append to it
 			last_dl := df.insn[len(df.insn)-1]
-			last_dl.opcode += dl.opcode
-		}
-
-		if lastOffset < dl.offset {
-			lastOffset = dl.offset
+			last_dl.opcode += insn_arr[1]
 		}
 	}
 
 	return df
 }
 
-func parseObjdump(b *bytes.Buffer) {
+func parseObjdump(p *DasParser, b *bytes.Buffer) {
 	//var filename, format string
 	var line string
 	var err error
@@ -135,7 +92,7 @@ func parseObjdump(b *bytes.Buffer) {
 		case str.HasSuffix(line, ">:\n"):
 			// 00000000004aeba0 <main.main>:
 			func_line := str.SplitN(line, " ", 2)
-			fn := parseFunction(b, func_line[1], func_line[0])
+			fn := parseFunction(p, b, func_line[1], func_line[0])
 			if fn != nil {
 				csect.start++ // abuse it as function count
 				funcs = append(funcs, fn)

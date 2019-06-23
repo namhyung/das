@@ -122,14 +122,13 @@ func main() {
 	} else {
 		var buf *bytes.Buffer
 
+		setupArchOps(p)
+
 		buf = runCommand("strings", "-t", "x", target)
 		parseStrings(buf)
 
 		buf = runCommand("objdump", "-d", "-C", target)
-		parseObjdump(buf)
-
-		// for ops.describe()
-		setupArchOps(p)
+		parseObjdump(p, buf)
 	}
 
 	ShowTUI(p)
