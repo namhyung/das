@@ -1,3 +1,5 @@
+// +build !nocapstone
+
 package main
 
 import (
@@ -9,13 +11,14 @@ import (
 	str "strings"
 )
 
-type DasOpsX86 struct {
+type DasCapstoneOpsX86 struct {
 	p *DasParser
 }
 
-func (o DasOpsX86) parseInsn(insn gcs.Instruction, sym elf.Symbol) *DasLine {
+func (o DasCapstoneOpsX86) parseInsn(instr interface{}, sym elf.Symbol) *DasLine {
 	dl := new(DasLine)
 
+	insn := instr.(gcs.Instruction)
 	dl.offset = int64(insn.Address)
 	dl.mnemonic = insn.Mnemonic
 	dl.args = insn.OpStr
@@ -160,7 +163,7 @@ func parsePLTEntry(insns []gcs.Instruction, idx int) int {
 	return 3
 }
 
-func (o DasOpsX86) parsePLT() {
+func (o DasCapstoneOpsX86) parsePLT() {
 	for _, sec := range o.p.elf.Sections {
 		if sec.Name != ".plt" {
 			continue
@@ -185,46 +188,10 @@ func (o DasOpsX86) parsePLT() {
 	}
 }
 
-func (o DasOpsX86) describe(dl *DasLine) string {
-	name := dl.mnemonic
-	desc := Insn_x86_64[name]
-	if len(desc) > 0 {
-		// there are two kinds of 'movsd' instructios
-		if dl.mnemonic == "movsd" && str.Contains(dl.args, "%xmm") {
-			desc = "Move Scalar Double-Precision Floating-Point Values"
-		}
-
-		return desc
-	}
-
-	// check suffix for conditional instructions
-	for _, insn := range CondInsn_x86_64 {
-		cond := ""
-
-		if !str.HasPrefix(name, insn) {
-			continue
-		}
-
-		for cc, cdesc := range Cond_x86_64 {
-			if name[len(insn):len(name)] == cc {
-				cond = cdesc
-			}
-		}
-
-		if len(cond) > 0 {
-			return fmt.Sprintf("%s If %s", Insn_x86_64[insn], cond)
-		}
-	}
-
-	// if it has a size suffix (bwlq), try to match again without it
-	if str.HasSuffix(name, "b") || str.HasSuffix(name, "w") ||
-		str.HasSuffix(name, "l") || str.HasSuffix(name, "q") {
-		return Insn_x86_64[name[0:len(name)-1]]
-	}
-
-	return "unknown"
+func (o DasCapstoneOpsX86) describe(dl *DasLine) string {
+	return describeX86Insn(dl.mnemonic, dl.args)
 }
 
-func getArchOpsX86(p *DasParser) DasArchOps {
-	return DasOpsX86{p}
+func getCapstoneOpsX86(p *DasParser) DasArchOps {
+	return DasCapstoneOpsX86{p}
 }

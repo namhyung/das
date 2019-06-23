@@ -1,3 +1,5 @@
+// +build !nocapstone
+
 package main
 
 import (
@@ -9,13 +11,14 @@ import (
 	str "strings"
 )
 
-type DasOpsAArch64 struct {
+type DasCapstoneOpsAArch64 struct {
 	p *DasParser
 }
 
-func (o DasOpsAArch64) parseInsn(insn gcs.Instruction, sym elf.Symbol) *DasLine {
+func (o DasCapstoneOpsAArch64) parseInsn(instr interface{}, sym elf.Symbol) *DasLine {
 	dl := new(DasLine)
 
+	insn := instr.(gcs.Instruction)
 	dl.offset = int64(insn.Address)
 	dl.mnemonic = insn.Mnemonic
 	dl.args = insn.OpStr
@@ -51,7 +54,7 @@ func (o DasOpsAArch64) parseInsn(insn gcs.Instruction, sym elf.Symbol) *DasLine 
 	return dl
 }
 
-func (o DasOpsAArch64) parsePLT0(insns []gcs.Instruction) int {
+func (o DasCapstoneOpsAArch64) parsePLT0(insns []gcs.Instruction) int {
 	var idx int
 
 	fn := new(DasFunc)
@@ -71,7 +74,7 @@ func (o DasOpsAArch64) parsePLT0(insns []gcs.Instruction) int {
 	return idx
 }
 
-func (o DasOpsAArch64) parsePLTEntry(insns []gcs.Instruction, idx int) int {
+func (o DasCapstoneOpsAArch64) parsePLTEntry(insns []gcs.Instruction, idx int) int {
 	fn := new(DasFunc)
 	fn.start = int64(insns[idx].Address)
 
@@ -117,7 +120,7 @@ func (o DasOpsAArch64) parsePLTEntry(insns []gcs.Instruction, idx int) int {
 	return 4
 }
 
-func (o DasOpsAArch64) parsePLT() {
+func (o DasCapstoneOpsAArch64) parsePLT() {
 	for _, sec := range o.p.elf.Sections {
 		if sec.Name != ".plt" {
 			continue
@@ -142,63 +145,10 @@ func (o DasOpsAArch64) parsePLT() {
 	}
 }
 
-func (o DasOpsAArch64) describe(insn *DasLine) string {
-	name := insn.mnemonic
-
-	// check core instructions
-	desc := Insn_AArch64[name]
-	if len(desc) > 0 {
-		return desc
-	}
-
-	namelen := len(name)
-	if name[namelen-1] == 's' {
-		cname := name[:namelen-1]
-
-		for _, csi := range CondSetInsn_AArch64 {
-			if cname == csi {
-				desc = Insn_AArch64[csi]
-			}
-		}
-		if len(desc) > 0 {
-			return fmt.Sprintf("%s, Set condition flags", desc)
-		}
-	}
-
-	if str.HasPrefix(name, "b.") {
-		for cc, cdesc := range Cond_AArch64 {
-			if name[2:] == cc {
-				return fmt.Sprintf("Branch If %s", cdesc)
-			}
-		}
-	}
-
-	// check Floating-Point and SIMD instructions
-	desc = SIMDInsn_AArch64[name]
-	if len(desc) > 0 {
-		return desc
-	}
-
-	// check instructions with condition suffix
-	if len(name) > 2 {
-		cname := name[:namelen-2]
-		for _, csi := range CondSIMDInsn_AArch64 {
-			if cname == csi {
-				desc = SIMDInsn_AArch64[csi]
-			}
-		}
-		if len(desc) > 0 {
-			for cc, cdesc := range Cond_AArch64 {
-				if name[namelen-2:] == cc {
-					return fmt.Sprintf("%s %s", desc, cdesc)
-				}
-			}
-		}
-	}
-
-	return "unknown"
+func (o DasCapstoneOpsAArch64) describe(insn *DasLine) string {
+	return describeAArch64Insn(insn.mnemonic, insn.args)
 }
 
-func getArchOpsAArch64(p *DasParser) DasArchOps {
-	return DasOpsAArch64{p}
+func getCapstoneOpsAArch64(p *DasParser) DasArchOps {
+	return DasCapstoneOpsAArch64{p}
 }

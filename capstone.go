@@ -1,3 +1,5 @@
+// +build !nocapstone
+
 package main
 
 import (
@@ -42,7 +44,7 @@ func prepareCapstone(p *DasParser) {
 	case elf.EM_X86_64:
 		arch = gcs.CS_ARCH_X86
 		mode = gcs.CS_MODE_64
-		p.ops = getArchOpsX86(p)
+		p.ops = getCapstoneOpsX86(p)
 	case elf.EM_386:
 		arch = gcs.CS_ARCH_X86
 		mode = gcs.CS_MODE_32
@@ -52,7 +54,7 @@ func prepareCapstone(p *DasParser) {
 	case elf.EM_AARCH64:
 		arch = gcs.CS_ARCH_ARM64
 		mode = gcs.CS_MODE_ARM
-		p.ops = getArchOpsAArch64(p)
+		p.ops = getCapstoneOpsAArch64(p)
 	default:
 		log.Fatal("Unsupported Architect\n")
 	}
