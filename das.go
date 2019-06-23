@@ -38,6 +38,7 @@ type DasLine struct {
 
 type DasFunc struct {
 	name  string
+	sym   elf.Symbol
 	start int64
 	sect  bool
 	fold  bool // for section

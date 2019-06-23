@@ -149,6 +149,24 @@ func parseReloc(p *DasParser) {
 	}
 }
 
+func parseCapstoneFunc(p *DasParser, fn *DasFunc) {
+	sym := fn.sym
+	sec := p.elf.Sections[sym.Section]
+	buf, err := sec.Data()
+
+	sym_start := sym.Value - sec.Addr
+	insns, err := p.engine.Disasm(buf[sym_start:sym_start+sym.Size], sym.Value, 0)
+	if err != nil {
+		fmt.Printf("Capstone disasm failed for %s\n", sym.Name)
+		return
+	}
+
+	for _, insn := range insns {
+		dl := p.ops.parseInsn(insn, sym)
+		fn.insn = append(fn.insn, dl)
+	}
+}
+
 func parseCapstone(p *DasParser) {
 	symtab, err := p.elf.Symbols()
 	if err != nil {
@@ -175,25 +193,13 @@ func parseCapstone(p *DasParser) {
 			continue
 		}
 
-		sec := p.elf.Sections[sym.Section]
-		buf, err := sec.Data()
-
-		sym_start := sym.Value - sec.Addr
-		insns, err := p.engine.Disasm(buf[sym_start:sym_start+sym.Size], sym.Value, 0)
-		if err != nil {
-			fmt.Printf("Capstone disasm failed for %s\n", sym.Name)
-			continue
-		}
-
 		fn := new(DasFunc)
 		fn.name = fmt.Sprintf("<%s>", sym.Name)
 		fn.start = int64(sym.Value)
+		fn.sym = sym
 
-		for _, insn := range insns {
-			dl := p.ops.parseInsn(insn, sym)
-			fn.insn = append(fn.insn, dl)
+		parseCapstoneFunc(p, fn)
 
-		}
 		funcs = append(funcs, fn)
 	}
 
