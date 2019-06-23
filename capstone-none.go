@@ -12,3 +12,6 @@ func prepareCapstone(p *DasParser) {
 
 func parseCapstone(p *DasParser) {
 }
+
+func parseCapstoneFunc(p *DasParser, fn *DasFunc) {
+}

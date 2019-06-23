@@ -491,6 +491,10 @@ func push(fun *DasFunc, top, cur int, fv, iv *DasView) {
 	iv.off = fun.start
 	iv.Title = fun.name
 
+	if fun.insn == nil {
+		parseCapstoneFunc(iv.dp, fun)
+	}
+
 	iv.line = make([]interface{}, len(fun.insn))
 	for i, l := range fun.insn {
 		iv.line[i] = l

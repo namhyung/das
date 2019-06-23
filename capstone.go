@@ -198,8 +198,6 @@ func parseCapstone(p *DasParser) {
 		fn.start = int64(sym.Value)
 		fn.sym = sym
 
-		parseCapstoneFunc(p, fn)
-
 		funcs = append(funcs, fn)
 	}
 
