@@ -49,7 +49,7 @@ func describeX86Insn(name, args string) string {
 	return "unknown"
 }
 
-func (o DasOpsX86) parseInsn(insn interface{}, sym elf.Symbol) *DasLine {
+func (o DasOpsX86) parseInsn(insn interface{}, sym *elf.Symbol) *DasLine {
 	return &DasLine{}
 }
 

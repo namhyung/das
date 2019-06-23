@@ -15,7 +15,7 @@ type DasCapstoneOpsAArch64 struct {
 	p *DasParser
 }
 
-func (o DasCapstoneOpsAArch64) parseInsn(instr interface{}, sym elf.Symbol) *DasLine {
+func (o DasCapstoneOpsAArch64) parseInsn(instr interface{}, sym *elf.Symbol) *DasLine {
 	dl := new(DasLine)
 
 	insn := instr.(gcs.Instruction)
@@ -66,7 +66,7 @@ func (o DasCapstoneOpsAArch64) parsePLT0(insns []gcs.Instruction) int {
 
 	for idx = 0; idx < 8; idx++ {
 		// it only has an indirect branch, so dummy symbol should be fine
-		dl := o.parseInsn(insns[idx], elf.Symbol{})
+		dl := o.parseInsn(insns[idx], &elf.Symbol{})
 
 		fn.insn = append(fn.insn, dl)
 	}
@@ -87,7 +87,7 @@ func (o DasCapstoneOpsAArch64) parsePLTEntry(insns []gcs.Instruction, idx int) i
 		insn := &insns[idx+i]
 
 		// it only has an indirect branch, so dummy symbol should be fine
-		dl := o.parseInsn(*insn, elf.Symbol{})
+		dl := o.parseInsn(*insn, &elf.Symbol{})
 
 		// extract base page address  (ex. ADRP x16, 11000)
 		if i == 0 {

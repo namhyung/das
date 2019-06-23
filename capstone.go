@@ -162,7 +162,7 @@ func parseCapstoneFunc(p *DasParser, fn *DasFunc) {
 	}
 
 	for _, insn := range insns {
-		dl := p.ops.parseInsn(insn, sym)
+		dl := p.ops.parseInsn(insn, &sym)
 		fn.insn = append(fn.insn, dl)
 	}
 }

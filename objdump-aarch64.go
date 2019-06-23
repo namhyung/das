@@ -65,7 +65,7 @@ func describeAArch64Insn(name, args string) string {
 	return "unknown"
 }
 
-func (o DasOpsAArch64) parseInsn(insn interface{}, sym elf.Symbol) *DasLine {
+func (o DasOpsAArch64) parseInsn(insn interface{}, sym *elf.Symbol) *DasLine {
 	return &DasLine{}
 }
 

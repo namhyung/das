@@ -15,7 +15,7 @@ type DasCapstoneOpsX86 struct {
 	p *DasParser
 }
 
-func (o DasCapstoneOpsX86) parseInsn(instr interface{}, sym elf.Symbol) *DasLine {
+func (o DasCapstoneOpsX86) parseInsn(instr interface{}, sym *elf.Symbol) *DasLine {
 	dl := new(DasLine)
 
 	insn := instr.(gcs.Instruction)

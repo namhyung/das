@@ -55,7 +55,7 @@ type DasParser struct {
 
 type DasArchOps interface {
 	parsePLT()
-	parseInsn(interface{}, elf.Symbol) *DasLine
+	parseInsn(interface{}, *elf.Symbol) *DasLine
 	describe(insn *DasLine) string
 }
 
