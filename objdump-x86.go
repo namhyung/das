@@ -22,6 +22,11 @@ func describeX86Insn(name, args string) string {
 		return desc
 	}
 
+	// check 'LOCK' prefix
+	if str.HasPrefix(name, "lock ") {
+		return describeX86Insn(name[5:], args)
+	}
+
 	// check suffix for conditional instructions
 	for _, insn := range CondInsn_x86_64 {
 		cond := ""
