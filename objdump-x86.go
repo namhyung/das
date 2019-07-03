@@ -46,10 +46,19 @@ func describeX86Insn(name, args string) string {
 		}
 	}
 
-	// if it has a size suffix (bwlq), try to match again without it
-	if str.HasSuffix(name, "b") || str.HasSuffix(name, "w") ||
-		str.HasSuffix(name, "l") || str.HasSuffix(name, "q") {
-		return Insn_x86_64[name[0:len(name)-1]]
+	namelen := len(name)
+	iname := name[:namelen-1]
+	suffix := name[namelen-1:]
+
+	// if it has a size suffix (bwdlq), try to match again without it
+	if size, ok := Size_x86_64[suffix]; ok {
+		if name, ok2 := SizeInsn_x86_64[iname]; ok2 {
+			return str.ReplaceAll(name, "${SIZE}", size)
+		}
+
+		if desc, ok2 := Insn_x86_64[iname]; ok2 {
+			return desc
+		}
 	}
 
 	return "unknown"
