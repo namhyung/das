@@ -706,6 +706,12 @@ func init() {
 	SizeInsn_x86_64 = map[string]string{
 		"cmp":    "Compare ${SIZE} Data Operands",
 		"cmps":   "Compare ${SIZE} String Operands",
+		"kadd":   "Add Two Masks in ${SIZE}  [AVX512]",
+		"kand":   "Bitwise Logical AND Masks in ${SIZE}  [AVX512]",
+		"kandn":  "Bitwise Logical AND NOT Masks in ${SIZE}  [AVX512]",
+		"kmov":   "Move from and to Mask Registers in ${SIZE}  [AVX512]",
+		"knot":   "NOT Mask Registers in ${SIZE}  [AVX512]",
+		"kor":    "Bitwise Logical OR Masks in ${SIZE}  [AVX512]",
 		"lods":   "Load ${SIZE} String",
 		"mov":    "Move ${SIZE} Data",
 		"movs":   "Move ${SIZE} Data from String to String",
