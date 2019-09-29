@@ -9,7 +9,7 @@ package main
 
 import (
 	"fmt"
-	tui "github.com/gizak/termui"
+	tui "github.com/gizak/termui/v3"
 	"image"
 	scv "strconv"
 	str "strings"
@@ -763,9 +763,9 @@ func ShowTUI(p *DasParser) {
 			up(cv)
 		case "<Down>", "j":
 			down(cv)
-		case "<Previous>":
+		case "<Previous>", "<PageUp>":
 			pageUp(cv)
-		case "<Next>":
+		case "<Next>", "<PageDown>":
 			pageDown(cv)
 		case "<Home>":
 			home(cv)
