@@ -19,7 +19,7 @@ func (o DasCapstoneOpsX86) parseInsn(instr interface{}, sym *elf.Symbol) *DasLin
 	dl := new(DasLine)
 
 	insn := instr.(gcs.Instruction)
-	dl.offset = int64(insn.Address)
+	dl.offset = uint64(insn.Address)
 	dl.mnemonic = insn.Mnemonic
 	dl.args = insn.OpStr
 
@@ -33,7 +33,7 @@ func (o DasCapstoneOpsX86) parseInsn(instr interface{}, sym *elf.Symbol) *DasLin
 
 		if str.HasPrefix(dl.args, "0x") {
 			target, _ := scv.ParseUint(insn.OpStr, 0, 64)
-			dl.target = int64(target)
+			dl.target = target
 
 			if sym.Value <= target && target < sym.Value+sym.Size {
 				dl.local = true
@@ -90,13 +90,13 @@ func parsePLT0(insns []gcs.Instruction) int {
 
 	fn := new(DasFunc)
 	fn.name = "<plt0>"
-	fn.start = int64(insns[0].Address)
+	fn.start = uint64(insns[0].Address)
 
 	funcs = append(funcs, fn)
 	syms[uint64(fn.start)] = fn.name
 
 	dl := new(DasLine)
-	dl.offset = int64(insns[0].Address)
+	dl.offset = uint64(insns[0].Address)
 	dl.mnemonic = insns[0].Mnemonic
 	dl.args = insns[0].OpStr
 	makeRawline(dl, insns[0], "")
@@ -105,7 +105,7 @@ func parsePLT0(insns []gcs.Instruction) int {
 
 	for idx = 1; insns[idx].Address&0xf != 0; idx++ {
 		dl = new(DasLine)
-		dl.offset = int64(insns[idx].Address)
+		dl.offset = uint64(insns[idx].Address)
 		dl.mnemonic = insns[idx].Mnemonic
 		dl.args = insns[idx].OpStr
 		makeRawline(dl, insns[idx], "")
@@ -122,13 +122,13 @@ func parsePLT0(insns []gcs.Instruction) int {
 
 func parsePLTEntry(insns []gcs.Instruction, idx int) int {
 	fn := new(DasFunc)
-	fn.start = int64(insns[idx].Address)
+	fn.start = uint64(insns[idx].Address)
 
 	funcs = append(funcs, fn)
 
 	for i := 0; i < 3; i++ {
 		dl := new(DasLine)
-		dl.offset = int64(insns[idx+i].Address)
+		dl.offset = uint64(insns[idx+i].Address)
 		dl.mnemonic = insns[idx+i].Mnemonic
 		dl.args = insns[idx+i].OpStr
 
@@ -153,7 +153,7 @@ func parsePLTEntry(insns []gcs.Instruction, idx int) int {
 
 		if i == 2 {
 			dl.optype = OPTYPE_BRANCH
-			dl.target = int64(insns[0].Address)
+			dl.target = uint64(insns[0].Address)
 			dl.args = "<plt0>"
 		}
 

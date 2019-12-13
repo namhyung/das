@@ -19,7 +19,7 @@ func (o DasCapstoneOpsAArch64) parseInsn(instr interface{}, sym *elf.Symbol) *Da
 	dl := new(DasLine)
 
 	insn := instr.(gcs.Instruction)
-	dl.offset = int64(insn.Address)
+	dl.offset = uint64(insn.Address)
 	dl.mnemonic = insn.Mnemonic
 	dl.args = insn.OpStr
 
@@ -30,7 +30,7 @@ func (o DasCapstoneOpsAArch64) parseInsn(instr interface{}, sym *elf.Symbol) *Da
 
 		if str.HasPrefix(dl.args, "#0x") {
 			target, _ := scv.ParseUint(insn.OpStr[1:], 0, 64)
-			dl.target = int64(target)
+			dl.target = target
 
 			if sym.Value <= target && target < sym.Value+sym.Size {
 				dl.local = true
@@ -59,7 +59,7 @@ func (o DasCapstoneOpsAArch64) parsePLT0(insns []gcs.Instruction) int {
 
 	fn := new(DasFunc)
 	fn.name = "<plt0>"
-	fn.start = int64(insns[0].Address)
+	fn.start = uint64(insns[0].Address)
 
 	funcs = append(funcs, fn)
 	syms[uint64(fn.start)] = fn.name
@@ -76,7 +76,7 @@ func (o DasCapstoneOpsAArch64) parsePLT0(insns []gcs.Instruction) int {
 
 func (o DasCapstoneOpsAArch64) parsePLTEntry(insns []gcs.Instruction, idx int) int {
 	fn := new(DasFunc)
-	fn.start = int64(insns[idx].Address)
+	fn.start = uint64(insns[idx].Address)
 
 	funcs = append(funcs, fn)
 

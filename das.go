@@ -26,20 +26,20 @@ const (
 
 type DasLine struct {
 	rawline  string
-	offset   int64
+	offset   uint64
 	optype   int
 	opcode   string // []uint8
 	mnemonic string
 	args     string
-	local    bool  // only for OPTYPE_BRANCH
-	target   int64 // only for OPTYPE_BRANCH
+	local    bool   // only for OPTYPE_BRANCH
+	target   uint64 // only for OPTYPE_BRANCH
 	comment  string
 }
 
 type DasFunc struct {
 	name  string
 	sym   elf.Symbol
-	start int64
+	start uint64
 	sect  bool
 	fold  bool // for section
 	insn  []*DasLine
@@ -61,9 +61,9 @@ type DasArchOps interface {
 
 var (
 	funcs      []*DasFunc
-	csect      *DasFunc         // current section
-	strs       map[int64]string // string table
-	lastOffset int64            // last code offset
+	csect      *DasFunc          // current section
+	strs       map[uint64]string // string table
+	lastOffset uint64            // last code offset
 	capstone   bool
 )
 

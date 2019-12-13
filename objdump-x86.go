@@ -95,14 +95,14 @@ func (o DasOpsX86) parseInsn(insn interface{}, sym *elf.Symbol) *DasLine {
 
 		tmp = str.Split(dl.args, " ")
 		if len(tmp) == 2 {
-			dl.target, _ = scv.ParseInt(tmp[0], 16, 64)
+			dl.target, _ = scv.ParseUint(tmp[0], 16, 64)
 			dl.args = tmp[1]
 
 			// if it's a jump in a same function, just save the offset
 			if str.HasPrefix(dl.args, sym.Name[0:len(sym.Name)-1]) &&
 				(dl.args[len(sym.Name)-1] == '+' ||
 					dl.args[len(sym.Name)-1] == '>') {
-				dl.args = fmt.Sprintf("%#x", dl.target-int64(sym.Value))
+				dl.args = fmt.Sprintf("%#x", dl.target-uint64(sym.Value))
 				dl.local = true
 			}
 		}

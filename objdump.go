@@ -14,7 +14,7 @@ func parseFunction(p *DasParser, b *bytes.Buffer, name, offset string) *DasFunc 
 	var err error
 	df := new(DasFunc)
 	df.name = str.TrimSuffix(name, ":\n")
-	df.start, err = scv.ParseInt(offset, 16, 64)
+	df.start, err = scv.ParseUint(offset, 16, 64)
 	if err != nil {
 		log.Println(err)
 		return nil
@@ -47,7 +47,7 @@ func parseFunction(p *DasParser, b *bytes.Buffer, name, offset string) *DasFunc 
 		if len(insn_arr) > 2 {
 			sym := elf.Symbol{Name: df.name, Value: uint64(df.start)}
 			dl := p.ops.parseInsn(insn_arr[2], &sym)
-			dl.offset, err = scv.ParseInt(line_arr[0], 16, 64)
+			dl.offset, err = scv.ParseUint(line_arr[0], 16, 64)
 			dl.opcode = insn_arr[1]
 
 			df.insn = append(df.insn, dl)
@@ -105,9 +105,9 @@ func parseObjdump(p *DasParser, b *bytes.Buffer) {
 func parseStrings(b *bytes.Buffer) {
 	var line string
 	var err error
-	var ofs int64
+	var ofs uint64
 
-	strs = make(map[int64]string)
+	strs = make(map[uint64]string)
 
 	for {
 		line, err = b.ReadString('\n')
@@ -120,14 +120,14 @@ func parseStrings(b *bytes.Buffer) {
 			continue
 		}
 
-		ofs, err = scv.ParseInt(data[0], 16, 64)
+		ofs, err = scv.ParseUint(data[0], 16, 64)
 		strs[ofs] = data[1]
 	}
 }
 
 func lookupStrings(comment string, ignoreCode bool) string {
 	cmt := str.Split(comment, " ")
-	offset, err := scv.ParseInt(cmt[0], 16, 64)
+	offset, err := scv.ParseUint(cmt[0], 16, 64)
 
 	if err != nil {
 		return fmt.Sprintf("%s: %s", comment, err.Error)

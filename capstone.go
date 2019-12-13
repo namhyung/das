@@ -195,7 +195,7 @@ func parseCapstone(p *DasParser) {
 
 		fn := new(DasFunc)
 		fn.name = fmt.Sprintf("<%s>", sym.Name)
-		fn.start = int64(sym.Value)
+		fn.start = uint64(sym.Value)
 		fn.sym = sym
 
 		funcs = append(funcs, fn)

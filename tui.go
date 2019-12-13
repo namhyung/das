@@ -32,7 +32,7 @@ type DasView struct {
 
 	top   int
 	cur   int
-	off   int64
+	off   uint64
 	insn  bool
 	raw   bool
 	arrow bool
@@ -93,7 +93,7 @@ func insnMsg(p *DasParser, arg interface{}) string {
 	if cv.arrow {
 		jmp := cv.line[cv.cur].(*DasLine)
 
-		target, _ := scv.ParseInt(jmp.args, 0, 64)
+		target, _ := scv.ParseUint(jmp.args, 0, 64)
 		target += cv.off
 
 		if dl.offset == jmp.offset {
