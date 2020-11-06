@@ -313,7 +313,7 @@ func init() {
 		"movs":             "Move Data from String to String",
 		"movshdup":         "Move Packed Single-FP High and Duplicate  [SSE3]",
 		"movsldup":         "Move Packed Single-FP Low and Duplicate  [SSE3]",
-		"movss":            "Move Scalar Single-Precision Floating-Point Values  [SSE]",
+		"movss":            "Move Scalar Single-FP Values  [SSE]",
 		"movsx":            "Move with Sign-Extension",
 		"movsxd":           "Move with Sign-Extension",
 		"movsbw":           "Move with Sign-Extension: Byte to Word",

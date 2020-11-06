@@ -14,12 +14,12 @@ type DasOpsX86 struct {
 func describeX86Insn(name, args string) string {
 	desc := Insn_x86_64[name]
 	if len(desc) > 0 {
-		// there are two kinds of 'movsd' instructios
-		if name == "movsd" && str.Contains(args, "%xmm") {
-			desc = "Move Scalar Double-Precision Floating-Point Values"
-		}
-
 		return desc
+	}
+
+	// there are two kinds of 'movsd' instructions
+	if name == "movsd" && str.Contains(args, "%xmm") {
+		return "Move Scalar Double-FP Values  [SSE]"
 	}
 
 	// check 'LOCK' prefix
@@ -71,7 +71,7 @@ func (o DasOpsX86) parseInsn(insn interface{}, sym *elf.Symbol) *DasLine {
 	dl.rawline = raw_line
 
 	tmp := str.SplitN(raw_line, " ", 2)
-	dl.mnemonic = tmp[0]
+	dl.mnemonic = str.TrimSpace(tmp[0])
 
 	if str.HasPrefix(dl.mnemonic, "ret") {
 		dl.optype = OPTYPE_RETURN
@@ -83,7 +83,7 @@ func (o DasOpsX86) parseInsn(insn interface{}, sym *elf.Symbol) *DasLine {
 
 	dl.args = str.TrimSpace(tmp[1])
 
-	if str.Index(dl.args, "#") != -1 {
+	if str.Contains(dl.args, "#") {
 		tmp = str.Split(dl.args, "#")
 		dl.args = str.TrimSpace(tmp[0])
 		dl.comment = str.TrimSpace(tmp[1])
