@@ -12,6 +12,8 @@ import (
 
 func parseFunction(p *DasParser, b *bytes.Buffer, name, offset string) *DasFunc {
 	var err error
+	var currFunc string
+
 	df := new(DasFunc)
 	df.name = str.TrimSuffix(name, ":\n")
 	df.start, err = scv.ParseUint(offset, 16, 64)
@@ -22,6 +24,38 @@ func parseFunction(p *DasParser, b *bytes.Buffer, name, offset string) *DasFunc 
 
 	for {
 		line, err := b.ReadString('\n')
+
+		// info lines
+		if len(line) > 1 && line[0] != 32 { // 32 = whitespace
+			line = str.TrimSpace(line)
+
+			if str.HasSuffix(line, "):") {
+				currFunc = str.Split(line, "(")[0]
+			} else if str.HasPrefix(line, "inlined by") {
+				if currFunc != "" && len(df.insn) > 0 {
+					dl := df.insn[len(df.insn)-1]
+					if dl.optype == OPTYPE_INFO {
+						if !str.HasPrefix(dl.args, "inlined by") {
+							dl.args = line
+						}
+						dl.indent++
+					}
+				}
+			} else if currFunc != "" {
+				dl := &DasLine{
+					optype:   OPTYPE_INFO,
+					mnemonic: currFunc,
+					args:     line,
+					rawline:  currFunc + "(): " + line,
+				}
+				df.insn = append(df.insn, dl)
+			}
+			continue
+		}
+		// we will process info lines only if it comes right after
+		// the function name
+		currFunc = ""
+
 		line = str.TrimSpace(line)
 		if len(line) == 0 {
 			break
@@ -35,11 +69,16 @@ func parseFunction(p *DasParser, b *bytes.Buffer, name, offset string) *DasFunc 
 		}
 
 		//          [TAB]                   [TAB]
+		//main():
+		//file/path/name.c:12
 		//   4aeba0:	64 48 8b 0c 25 f8 ff 	mov    %fs:0xfffffffffffffff8,%rcx
 		//   4aeba7:	ff ff
 		//   4aeba9:	48 8d 44 24 c8       	lea    -0x38(%rsp),%rax
 		//   4aeefe:	48 3b 41 10          	cmp    0x10(%rcx),%rax
 		//   4aef02:	0f 86 f6 01 00 00    	jbe    4af0fe <main.main+0x20e>
+		//other_func():
+		//file/path/name.c:64
+		//inlined by file/path/name.c:15
 
 		line_arr := str.SplitN(line, ":", 2)
 		insn_arr := str.Split(line_arr[1], "\t")
@@ -59,6 +98,14 @@ func parseFunction(p *DasParser, b *bytes.Buffer, name, offset string) *DasFunc 
 			// leftover from the previous insn, append to it
 			last_dl := df.insn[len(df.insn)-1]
 			last_dl.opcode += insn_arr[1]
+		}
+	}
+
+	for i, dl := range df.insn {
+		if dl.optype == OPTYPE_INFO && i+1 < len(df.insn) &&
+			df.insn[i+1].optype != OPTYPE_INFO {
+			// use same offset (for arrow handling)
+			dl.offset = df.insn[i+1].offset
 		}
 	}
 
@@ -154,6 +201,20 @@ func runCommand(name string, args ...string) *bytes.Buffer {
 	err := cmd.Run()
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	return outbuf
+}
+
+func tryCommand(name string, args ...string) *bytes.Buffer {
+	outbuf := new(bytes.Buffer)
+
+	cmd := exec.Command(name, args...)
+	cmd.Stdout = outbuf
+
+	err := cmd.Run()
+	if err != nil {
+		outbuf.Reset()
 	}
 
 	return outbuf

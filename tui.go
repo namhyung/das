@@ -20,6 +20,7 @@ const (
 	normal = iota
 	focus
 	special
+	info
 )
 
 type DasView struct {
@@ -28,7 +29,7 @@ type DasView struct {
 	Height int
 	Width  int
 
-	styles [3]tui.Style
+	styles [4]tui.Style
 
 	top   int
 	cur   int
@@ -96,11 +97,11 @@ func insnMsg(p *DasParser, arg interface{}) string {
 		target, _ := scv.ParseUint(jmp.args, 0, 64)
 		target += cv.off
 
-		if dl.offset == jmp.offset {
+		if dl.offset == jmp.offset && dl.optype != OPTYPE_INFO {
 			arw = "+--"
-		} else if dl.offset == target {
+		} else if dl.offset == target && dl.optype != OPTYPE_INFO {
 			arw = "+->"
-		} else if jmp.offset < dl.offset && dl.offset < target {
+		} else if jmp.offset < dl.offset && dl.offset <= target {
 			arw = "|  "
 		} else if target < dl.offset && dl.offset < jmp.offset {
 			arw = "|  "
@@ -108,11 +109,25 @@ func insnMsg(p *DasParser, arg interface{}) string {
 	}
 
 	if cv.raw {
-		ls = fmt.Sprintf(" %s %4x:  %-*s   %s",
-			arw, dl.offset, cv.mow, dl.opcode, dl.rawline)
+		if dl.optype == OPTYPE_INFO {
+			ls = fmt.Sprintf(" %s # %s %s",
+				arw, str.Repeat(" >>>", dl.indent), dl.rawline)
+		} else {
+			ls = fmt.Sprintf(" %s %4x:  %-*s   %s",
+				arw, dl.offset, cv.mow, dl.opcode, dl.rawline)
+		}
 	} else {
-		ls = fmt.Sprintf(" %s %4x:  %-*s   %s",
-			arw, dl.offset-cv.off, cv.miw, dl.mnemonic, dl.args)
+		if dl.optype == OPTYPE_INFO {
+			desc := "inlined"
+			if dl.indent == 0 {
+				desc = "origin"
+			}
+			ls = fmt.Sprintf(" %s # %s %s(): [%s]",
+				arw, str.Repeat(" >>>", dl.indent), dl.mnemonic, desc)
+		} else {
+			ls = fmt.Sprintf(" %s %4x:  %-*s   %s",
+				arw, dl.offset-cv.off, cv.miw, dl.mnemonic, dl.args)
+		}
 
 		if len(dl.comment) > 0 {
 			ls += "   # "
@@ -144,7 +159,13 @@ func funcStat(p *DasParser, arg interface{}) string {
 }
 
 func insnStat(p *DasParser, arg interface{}) string {
-	return describeInsn(p, arg.(*DasLine))
+	dl := arg.(*DasLine)
+
+	if dl.optype == OPTYPE_INFO {
+		return fmt.Sprintf("%s(): %s", dl.mnemonic, dl.args)
+	}
+
+	return describeInsn(p, dl)
 }
 
 func (dv *DasView) Draw(buf *tui.Buffer) {
@@ -174,6 +195,8 @@ func (dv *DasView) Draw(buf *tui.Buffer) {
 				if insn.optype == OPTYPE_BRANCH ||
 					insn.optype == OPTYPE_RETURN {
 					st = dv.styles[special]
+				} else if insn.optype == OPTYPE_INFO {
+					st = dv.styles[info]
 				}
 			} else {
 				fun := dl.(*DasFunc)
@@ -534,7 +557,7 @@ func enter(fv, iv *DasView) {
 		// move to a different function if it's call or return
 		ln := iv.line[iv.cur].(*DasLine)
 
-		if ln.optype == OPTYPE_OTHER {
+		if ln.optype == OPTYPE_OTHER || ln.optype == OPTYPE_INFO {
 			return
 		}
 
@@ -678,9 +701,10 @@ func ShowTUI(p *DasParser) {
 	}
 	defer tui.Close()
 
-	text_styles := [3]tui.Style{tui.NewStyle(tui.ColorWhite, tui.ColorBlack),
+	text_styles := [4]tui.Style{tui.NewStyle(tui.ColorWhite, tui.ColorBlack),
 		tui.NewStyle(tui.ColorWhite, tui.ColorBlue, tui.ModifierBold),
-		tui.NewStyle(tui.ColorYellow, tui.ColorBlack)}
+		tui.NewStyle(tui.ColorYellow, tui.ColorBlack),
+		tui.NewStyle(tui.ColorGreen, tui.ColorBlack)}
 	title_style := tui.NewStyle(tui.ColorGreen, tui.ColorBlack)
 	status_style := tui.NewStyle(tui.ColorBlack, tui.ColorWhite)
 

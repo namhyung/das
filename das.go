@@ -22,6 +22,7 @@ const (
 	OPTYPE_OTHER = iota
 	OPTYPE_BRANCH
 	OPTYPE_RETURN
+	OPTYPE_INFO
 )
 
 type DasLine struct {
@@ -31,8 +32,9 @@ type DasLine struct {
 	opcode   string // []uint8
 	mnemonic string
 	args     string
-	local    bool   // only for OPTYPE_BRANCH
-	target   uint64 // only for OPTYPE_BRANCH
+	local    bool   // for OPTYPE_BRANCH
+	target   uint64 // for OPTYPE_BRANCH
+	indent   int    // for OPTYPE_INFO
 	comment  string
 }
 
@@ -127,7 +129,10 @@ func main() {
 		buf = runCommand("strings", "-t", "x", target)
 		parseStrings(buf)
 
-		buf = runCommand("objdump", "-d", "-C", target)
+		buf = tryCommand("objdump", "-dCl", "--inlines", target)
+		if buf.Len() == 0 {
+			buf = runCommand("objdump", "-dC", target)
+		}
 		parseObjdump(p, buf)
 	}
 
