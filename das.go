@@ -66,10 +66,12 @@ var (
 	strs       map[uint64]string // string table
 	lastOffset uint64            // last code offset
 	capstone   bool
+	objdump    string
 )
 
 func init() {
 	flag.BoolVar(&capstone, "c", false, "Use capstone disassembler")
+	flag.StringVar(&objdump, "d", "objdump", "Path to objdump tool")
 }
 
 func initDasParser(target string) *DasParser {
@@ -125,9 +127,9 @@ func main() {
 		buf = runCommand("strings", "-t", "x", target)
 		parseStrings(buf)
 
-		buf = tryCommand("objdump", "-dCl", "--inlines", target)
+		buf = tryCommand(objdump, "-dCl", "--inlines", target)
 		if buf.Len() == 0 {
-			buf = runCommand("objdump", "-dC", target)
+			buf = runCommand(objdump, "-dC", target)
 		}
 		parseObjdump(p, buf)
 	}
