@@ -12,7 +12,6 @@ import (
 	"debug/elf"
 	"flag"
 	"fmt"
-	gcs "github.com/bnagy/gapstone"
 	"log"
 	"os"
 	str "strings"
@@ -51,8 +50,8 @@ type DasParser struct {
 	name   string
 	file   *os.File
 	elf    *elf.File
-	engine *gcs.Engine
 	ops    DasArchOps
+	engine interface{}
 }
 
 type DasArchOps interface {
@@ -88,9 +87,6 @@ func initDasParser(target string) *DasParser {
 }
 
 func finishDasParser(p *DasParser) {
-	if p.engine != nil {
-		p.engine.Close()
-	}
 	p.elf.Close()
 	p.file.Close()
 }

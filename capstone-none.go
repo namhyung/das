@@ -1,4 +1,4 @@
-// +build nocapstone
+// +build !capstone
 
 package main
 

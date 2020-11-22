@@ -1,4 +1,4 @@
-// +build !nocapstone
+// +build capstone
 
 package main
 
@@ -153,9 +153,10 @@ func parseCapstoneFunc(p *DasParser, fn *DasFunc) {
 	sym := fn.sym
 	sec := p.elf.Sections[sym.Section]
 	buf, err := sec.Data()
+	engine := p.engine.(*gcs.Engine)
 
 	sym_start := sym.Value - sec.Addr
-	insns, err := p.engine.Disasm(buf[sym_start:sym_start+sym.Size], sym.Value, 0)
+	insns, err := engine.Disasm(buf[sym_start:sym_start+sym.Size], sym.Value, 0)
 	if err != nil {
 		fmt.Printf("Capstone disasm failed for %s\n", sym.Name)
 		return
@@ -232,4 +233,6 @@ func parseCapstone(p *DasParser) {
 		}
 		csect.start++
 	}
+
+	p.engine.(*gcs.Engine).Close()
 }

@@ -1,4 +1,4 @@
-// +build !nocapstone
+// +build capstone
 
 package main
 
@@ -13,6 +13,7 @@ import (
 
 type DasCapstoneOpsX86 struct {
 	p *DasParser
+	e *gcs.Engine
 }
 
 func (o DasCapstoneOpsX86) parseInsn(instr interface{}, sym *elf.Symbol) *DasLine {
@@ -174,7 +175,7 @@ func (o DasCapstoneOpsX86) parsePLT() {
 			log.Fatal(err)
 		}
 
-		insns, err := o.p.engine.Disasm(buf, sec.Addr, 0)
+		insns, err := o.e.Disasm(buf, sec.Addr, 0)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -193,5 +194,5 @@ func (o DasCapstoneOpsX86) describe(dl *DasLine) string {
 }
 
 func getCapstoneOpsX86(p *DasParser) DasArchOps {
-	return DasCapstoneOpsX86{p}
+	return DasCapstoneOpsX86{p, p.engine.(*gcs.Engine)}
 }
