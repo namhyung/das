@@ -34,5 +34,5 @@ If you have golang environment setup:
 
 Or, just download the binary:
 
-    $ wget https://github.com/namhyung/das/releases/download/v0.1/das-linux-amd64
+    $ wget https://github.com/namhyung/das/releases/download/v0.2/das-linux-amd64
     $ sudo install -D das-linux-amd64 /usr/local/bin/das

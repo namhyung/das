@@ -18,6 +18,10 @@ import (
 )
 
 const (
+	DasVersion string = "v0.2"
+)
+
+const (
 	OPTYPE_OTHER = iota
 	OPTYPE_BRANCH
 	OPTYPE_RETURN
@@ -65,13 +69,19 @@ var (
 	csect      *DasFunc          // current section
 	strs       map[uint64]string // string table
 	lastOffset uint64            // last code offset
-	capstone   bool
-	objdump    string
+)
+
+var (
+	// command line options
+	capstone bool
+	objdump  string
+	version  bool
 )
 
 func init() {
 	flag.BoolVar(&capstone, "c", false, "Use capstone disassembler")
 	flag.StringVar(&objdump, "d", "objdump", "Path to objdump tool")
+	flag.BoolVar(&version, "v", false, "Show version number")
 }
 
 func initDasParser(target string) *DasParser {
@@ -105,6 +115,12 @@ func main() {
 	flag.Parse()
 
 	args := flag.Args()
+
+	if version {
+		fmt.Printf("das (TUI disassembler): %s\n", DasVersion)
+		return
+	}
+
 	if len(args) < 1 {
 		log.Fatal("Usage: das <binary>")
 	}
