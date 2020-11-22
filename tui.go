@@ -425,11 +425,6 @@ func doSearch(dv *DasView) {
 }
 
 func prevSearch(dv *DasView) {
-	if search {
-		addSearch("p")
-		return
-	}
-
 	if len(sname) == 0 {
 		return
 	}
@@ -448,11 +443,6 @@ func prevSearch(dv *DasView) {
 }
 
 func nextSearch(dv *DasView) {
-	if search {
-		addSearch("n")
-		return
-	}
-
 	if len(sname) == 0 {
 		return
 	}
@@ -614,11 +604,6 @@ func backspace(dv *DasView) {
 }
 
 func list(dv *DasView) {
-	if search {
-		addSearch("l")
-		return
-	}
-
 	if len(history) == 0 {
 		return
 	}
@@ -651,11 +636,6 @@ func addSearch(key string) {
 }
 
 func rawMode(dv *DasView) {
-	if search {
-		addSearch("v")
-		return
-	}
-
 	if dv.insn {
 		// toggle to show raw opcode
 		dv.raw = !dv.raw
@@ -749,15 +729,14 @@ func ShowTUI(p *DasParser) {
 	for !done {
 		e := <-evt
 
+		if search && e.ID[0] != '<' {
+			addSearch(e.ID)
+			render(cv)
+			continue
+		}
+
 		switch e.ID {
-		case "q":
-			if search {
-				addSearch("q")
-				render(cv)
-				continue
-			}
-			fallthrough
-		case "<C-c>":
+		case "<C-c>", "q":
 			done = true
 		case "<Up>", "k":
 			up(cv)
@@ -791,8 +770,6 @@ func ShowTUI(p *DasParser) {
 			if !search && cv == fv && e.ID == "/" {
 				sname = "" // clear previous search
 				search = true
-			} else if search {
-				addSearch(e.ID)
 			}
 		}
 		render(cv)
