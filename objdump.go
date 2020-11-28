@@ -1,16 +1,17 @@
 package main
 
 import (
-	"bytes"
+	"bufio"
 	"debug/elf"
 	"fmt"
+	"io"
 	"log"
 	"os/exec"
 	scv "strconv"
 	str "strings"
 )
 
-func parseFunction(p *DasParser, b *bytes.Buffer, name, offset string) *DasFunc {
+func parseFunction(p *DasParser, br *bufio.Reader, name, offset string) (*DasFunc, int) {
 	var err error
 	var currFunc string
 
@@ -19,11 +20,13 @@ func parseFunction(p *DasParser, b *bytes.Buffer, name, offset string) *DasFunc 
 	df.start, err = scv.ParseUint(offset, 16, 64)
 	if err != nil {
 		log.Println(err)
-		return nil
+		return nil, 0
 	}
 
+	lines := 0
 	for {
-		line, err := b.ReadString('\n')
+		line, err := br.ReadString('\n')
+		lines += 1
 
 		// info lines
 		if len(line) > 1 && line[0] != 32 { // 32 = whitespace
@@ -111,19 +114,26 @@ func parseFunction(p *DasParser, b *bytes.Buffer, name, offset string) *DasFunc 
 		}
 	}
 
-	return df
+	return df, lines
 }
 
-func parseObjdump(p *DasParser, b *bytes.Buffer) {
+func parseObjdump(p *DasParser, rc io.ReadCloser) {
 	//var filename, format string
 	var line string
 	var err error
+	var lines int
+	var printed bool
 
+	const hugeOutput int = 300000
+
+	br := bufio.NewReader(rc)
 	for {
-		line, err = b.ReadString('\n')
+		line, err = br.ReadString('\n')
 		if err != nil {
 			break
 		}
+
+		lines += 1
 
 		switch {
 		case str.Contains(line, "file format "):
@@ -141,25 +151,35 @@ func parseObjdump(p *DasParser, b *bytes.Buffer) {
 		case str.HasSuffix(line, ">:\n"):
 			// 00000000004aeba0 <main.main>:
 			func_line := str.SplitN(line, " ", 2)
-			fn := parseFunction(p, b, func_line[1], func_line[0])
+			fn, cnt := parseFunction(p, br, func_line[1], func_line[0])
 			if fn != nil {
 				csect.start++ // abuse it as function count
 				funcs = append(funcs, fn)
 			}
+			lines += cnt
+			if lines > hugeOutput {
+				fmt.Printf("\rParsing objdump output... %10d lines", lines)
+				printed = true
+			}
 		default:
 		}
 	}
+
+	if printed {
+		fmt.Println(".  Done.")
+	}
 }
 
-func parseStrings(b *bytes.Buffer) {
+func parseStrings(r io.Reader) {
 	var line string
 	var err error
 	var ofs uint64
 
 	strs = make(map[uint64]string)
+	br := bufio.NewReader(r)
 
 	for {
-		line, err = b.ReadString('\n')
+		line, err = br.ReadString('\n')
 		if err != nil {
 			break
 		}
@@ -194,32 +214,18 @@ func lookupStrings(comment string, ignoreCode bool) string {
 	return comment
 }
 
-func runCommand(name string, args ...string) *bytes.Buffer {
-	outbuf := new(bytes.Buffer)
-
+func runCommand(name string, args ...string) (*exec.Cmd, io.ReadCloser, error) {
 	cmd := exec.Command(name, args...)
-	cmd.Stdout = outbuf
-
-	err := cmd.Run()
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		log.Fatal(err)
+		return cmd, nil, err
 	}
 
-	return outbuf
-}
-
-func tryCommand(name string, args ...string) *bytes.Buffer {
-	outbuf := new(bytes.Buffer)
-
-	cmd := exec.Command(name, args...)
-	cmd.Stdout = outbuf
-
-	err := cmd.Run()
-	if err != nil {
-		outbuf.Reset()
+	if err := cmd.Start(); err != nil {
+		return cmd, nil, err
 	}
 
-	return outbuf
+	return cmd, stdout, nil
 }
 
 func setupArchOps(p *DasParser) {

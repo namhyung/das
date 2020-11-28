@@ -8,7 +8,6 @@
 package main
 
 import (
-	"bytes"
 	"debug/elf"
 	"flag"
 	"fmt"
@@ -136,18 +135,24 @@ func main() {
 
 		parseCapstone(p)
 	} else {
-		var buf *bytes.Buffer
-
 		setupArchOps(p)
 
-		buf = runCommand("strings", "-t", "x", target)
-		parseStrings(buf)
-
-		buf = tryCommand(objdump, "-dCl", "--inlines", target)
-		if buf.Len() == 0 {
-			buf = runCommand(objdump, "-dC", target)
+		cmd, r, err := runCommand("strings", "-t", "x", target)
+		if err == nil {
+			parseStrings(r)
 		}
-		parseObjdump(p, buf)
+		cmd.Wait()
+
+		cmd, r, err = runCommand(objdump, "-dCl", "--inlines", target)
+		if err != nil {
+			cmd, r, err = runCommand(objdump, "-dC", target)
+		}
+		if err == nil {
+			parseObjdump(p, r)
+		} else {
+			log.Fatal(err)
+		}
+		cmd.Wait()
 	}
 
 	ShowTUI(p)
