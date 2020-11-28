@@ -96,8 +96,10 @@ func parseFunction(p *DasParser, b *bytes.Buffer, name, offset string) *DasFunc 
 			}
 		} else {
 			// leftover from the previous insn, append to it
-			last_dl := df.insn[len(df.insn)-1]
-			last_dl.opcode += insn_arr[1]
+			if len(df.insn) > 0 {
+				last_dl := df.insn[len(df.insn)-1]
+				last_dl.opcode += insn_arr[1]
+			}
 		}
 	}
 
