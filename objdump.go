@@ -29,7 +29,7 @@ func parseFunction(p *DasParser, br *bufio.Reader, name, offset string) (*DasFun
 		lines += 1
 
 		// info lines
-		if len(line) > 1 && line[0] != 32 { // 32 = whitespace
+		if len(line) > 1 && !str.Contains(line, ":\t") {
 			line = str.TrimSpace(line)
 
 			if str.HasSuffix(line, "):") {
