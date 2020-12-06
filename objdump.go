@@ -11,7 +11,15 @@ import (
 	str "strings"
 )
 
-func parseFunction(p *DasParser, br *bufio.Reader, name, offset string) (*DasFunc, int) {
+const (
+	hugeOutput int = 300000
+)
+
+var (
+	parsedLines int
+)
+
+func parseFunction(p *DasParser, br *bufio.Reader, name, offset string) *DasFunc {
 	var err error
 	var currFunc string
 
@@ -20,13 +28,12 @@ func parseFunction(p *DasParser, br *bufio.Reader, name, offset string) (*DasFun
 	df.start, err = scv.ParseUint(offset, 16, 64)
 	if err != nil {
 		log.Println(err)
-		return nil, 0
+		return nil
 	}
 
-	lines := 0
 	for {
 		line, err := br.ReadString('\n')
-		lines += 1
+		parsedLines += 1
 
 		// info lines
 		if len(line) > 1 && !str.Contains(line, ":\t") {
@@ -114,17 +121,14 @@ func parseFunction(p *DasParser, br *bufio.Reader, name, offset string) (*DasFun
 		}
 	}
 
-	return df, lines
+	return df
 }
 
 func parseObjdump(p *DasParser, rc io.ReadCloser) {
 	//var filename, format string
 	var line string
 	var err error
-	var lines int
 	var printed bool
-
-	const hugeOutput int = 300000
 
 	br := bufio.NewReader(rc)
 	for {
@@ -133,7 +137,7 @@ func parseObjdump(p *DasParser, rc io.ReadCloser) {
 			break
 		}
 
-		lines += 1
+		parsedLines += 1
 
 		switch {
 		case str.Contains(line, "file format "):
@@ -151,14 +155,13 @@ func parseObjdump(p *DasParser, rc io.ReadCloser) {
 		case str.HasSuffix(line, ">:\n"):
 			// 00000000004aeba0 <main.main>:
 			func_line := str.SplitN(line, " ", 2)
-			fn, cnt := parseFunction(p, br, func_line[1], func_line[0])
+			fn := parseFunction(p, br, func_line[1], func_line[0])
 			if fn != nil {
 				csect.start++ // abuse it as function count
 				funcs = append(funcs, fn)
 			}
-			lines += cnt
-			if lines > hugeOutput {
-				fmt.Printf("\rParsing objdump output... %10d lines", lines)
+			if parsedLines > hugeOutput {
+				fmt.Printf("\rParsing objdump output... %10d lines", parsedLines)
 				printed = true
 			}
 		default:
@@ -191,6 +194,11 @@ func parseStrings(r io.Reader) {
 
 		ofs, err = scv.ParseUint(data[0], 16, 64)
 		strs[ofs] = data[1]
+
+		parsedLines++
+		if parsedLines > hugeOutput {
+			fmt.Printf("\rLoading strings in binary.... %10d", parsedLines)
+		}
 	}
 }
 
