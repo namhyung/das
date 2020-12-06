@@ -40,7 +40,12 @@ func parseFunction(p *DasParser, br *bufio.Reader, name, offset string) *DasFunc
 			line = str.TrimSpace(line)
 
 			if str.HasSuffix(line, "):") {
-				currFunc = str.Split(line, "(")[0]
+				idx := str.LastIndex(line, "(")
+				if idx != -1 {
+					currFunc = line[0:idx]
+				} else {
+					currFunc = line
+				}
 			} else if str.HasPrefix(line, "inlined by") {
 				if currFunc != "" && len(df.insn) > 0 {
 					dl := df.insn[len(df.insn)-1]
@@ -52,6 +57,7 @@ func parseFunction(p *DasParser, br *bufio.Reader, name, offset string) *DasFunc
 					}
 				}
 			} else if currFunc != "" {
+				// source filename and line info
 				dl := &DasLine{
 					optype:   OPTYPE_INFO,
 					mnemonic: currFunc,
