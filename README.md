@@ -12,6 +12,11 @@ Usage
 -----
 
     $ das <program>
+      -d string
+                Path to objdump tool (default "objdump")
+      -i        Do not use inline info
+      -v        Show version number
+
 
 It supports following keys
 

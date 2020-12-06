@@ -9,6 +9,7 @@ package main
 
 import (
 	"debug/elf"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -75,11 +76,13 @@ var (
 	capstone bool
 	objdump  string
 	version  bool
+	noInline bool
 )
 
 func init() {
 	flag.BoolVar(&capstone, "c", false, "Use capstone disassembler")
 	flag.StringVar(&objdump, "d", "objdump", "Path to objdump tool")
+	flag.BoolVar(&noInline, "i", false, "Do not use inline info")
 	flag.BoolVar(&version, "v", false, "Show version number")
 }
 
@@ -143,7 +146,12 @@ func main() {
 		}
 		cmd.Wait()
 
-		cmd, r, err = runCommand(objdump, "-dCl", "--inlines", target)
+		if !noInline {
+			cmd, r, err = runCommand(objdump, "-dCl", "--inlines", target)
+		} else {
+			err = errors.New("User wants no-inline")
+		}
+
 		if err != nil {
 			cmd, r, err = runCommand(objdump, "-dC", target)
 		}
