@@ -233,6 +233,10 @@ func update(dv *DasView) {
 
 	for _, ln := range dv.line {
 		insn := ln.(*DasLine)
+		if insn.optype == OPTYPE_INFO {
+			continue
+		}
+
 		if len(insn.opcode) > dv.mow {
 			dv.mow = len(insn.opcode)
 		}
