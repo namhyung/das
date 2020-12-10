@@ -228,6 +228,32 @@ func lookupStrings(comment string, ignoreCode bool) string {
 	return comment
 }
 
+func lookupSymbols(addr uint64, p *DasParser) string {
+	symbols, _ := p.elf.Symbols()
+	for _, sym := range symbols {
+		if sym.Value <= addr && addr < sym.Value+sym.Size {
+			if sym.Value == addr {
+				return fmt.Sprintf("<%s>", sym.Name)
+			} else {
+				return fmt.Sprintf("<%s+%x>", sym.Name, addr-sym.Value)
+			}
+		}
+	}
+
+	symbols, _ = p.elf.DynamicSymbols()
+	for _, sym := range symbols {
+		if sym.Value <= addr && addr < sym.Value+sym.Size {
+			if sym.Value == addr {
+				return fmt.Sprintf("<%s>", sym.Name)
+			} else {
+				return fmt.Sprintf("<%s+%x>", sym.Name, addr-sym.Value)
+			}
+		}
+	}
+
+	return ""
+}
+
 func runCommand(name string, args ...string) (*exec.Cmd, io.ReadCloser, error) {
 	cmd := exec.Command(name, args...)
 	stdout, err := cmd.StdoutPipe()

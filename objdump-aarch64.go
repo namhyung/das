@@ -11,6 +11,11 @@ type DasOpsAArch64 struct {
 	p *DasParser
 }
 
+var (
+	adrpReg string
+	adrpOff uint64
+)
+
 func describeAArch64Insn(name, args string) string {
 	// check core instructions
 	desc := Insn_AArch64[name]
@@ -110,6 +115,38 @@ func (o DasOpsAArch64) parseInsn(insn interface{}, sym *elf.Symbol) *DasLine {
 				dl.local = true
 			}
 		}
+	}
+
+	if adrpOff != 0 && (dl.mnemonic == "add" || dl.mnemonic == "ldr" || dl.mnemonic == "str") {
+		if str.Contains(dl.args, adrpReg) {
+			if idx := str.Index(dl.args, "#"); idx > 0 {
+				off, err := scv.ParseUint(dl.args[idx+1:], 0, 64)
+				if err != nil && str.HasSuffix(dl.args[idx+1:], "]") {
+					addrStr := dl.args[idx+1:]
+					off, _ = scv.ParseUint(addrStr[:len(addrStr)-1], 0, 64)
+				}
+
+				if sym := lookupSymbols(adrpOff+off, o.p); sym != "" {
+					dl.args += "  // " + sym
+				} else {
+					dl.args += fmt.Sprintf("  // 0x%x", adrpOff+off)
+				}
+			}
+		}
+	}
+
+	if dl.mnemonic == "adrp" {
+		tmp = str.SplitN(dl.args, " ", 3)
+		if len(tmp) == 3 {
+			adrpReg = tmp[0]
+			adrpOff, _ = scv.ParseUint(tmp[1], 16, 64)
+
+			// ignore dummy symbol
+			dl.args = tmp[0] + " " + tmp[1]
+		}
+	} else {
+		adrpOff = 0
+		adrpReg = ""
 	}
 
 	return dl
