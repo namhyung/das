@@ -123,5 +123,6 @@ func (o DasOpsAArch64) describe(dl *DasLine) string {
 }
 
 func getArchOpsAArch64(p *DasParser) DasArchOps {
+	p.comment = "//"
 	return DasOpsAArch64{p}
 }

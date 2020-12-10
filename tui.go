@@ -110,8 +110,8 @@ func insnMsg(p *DasParser, arg interface{}) string {
 
 	if cv.raw {
 		if dl.optype == OPTYPE_INFO {
-			ls = fmt.Sprintf(" %s # %s %s",
-				arw, str.Repeat(" >>>", dl.indent), dl.rawline)
+			ls = fmt.Sprintf(" %s %s %s %s",
+				arw, p.comment, str.Repeat(" >>>", dl.indent), dl.rawline)
 		} else {
 			ls = fmt.Sprintf(" %s %4x:  %-*s   %s",
 				arw, dl.offset, cv.mow, dl.opcode, dl.rawline)
@@ -122,15 +122,15 @@ func insnMsg(p *DasParser, arg interface{}) string {
 			if dl.indent == 0 {
 				desc = "origin"
 			}
-			ls = fmt.Sprintf(" %s # %s %s(): [%s]",
-				arw, str.Repeat(" >>>", dl.indent), dl.mnemonic, desc)
+			ls = fmt.Sprintf(" %s %s %s %s(): [%s]",
+				arw, p.comment, str.Repeat(" >>>", dl.indent), dl.mnemonic, desc)
 		} else {
 			ls = fmt.Sprintf(" %s %4x:  %-*s   %s",
 				arw, dl.offset-cv.off, cv.miw, dl.mnemonic, dl.args)
 		}
 
 		if len(dl.comment) > 0 {
-			ls += "   # "
+			ls += fmt.Sprintf("   %s ", p.comment)
 			ls += lookupStrings(dl.comment, true)
 		}
 	}

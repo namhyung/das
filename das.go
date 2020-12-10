@@ -51,11 +51,12 @@ type DasFunc struct {
 }
 
 type DasParser struct {
-	name   string
-	file   *os.File
-	elf    *elf.File
-	ops    DasArchOps
-	engine interface{}
+	name    string
+	file    *os.File
+	elf     *elf.File
+	ops     DasArchOps
+	comment string
+	engine  interface{}
 }
 
 type DasArchOps interface {
@@ -97,7 +98,7 @@ func initDasParser(target string) *DasParser {
 		log.Fatal(err)
 	}
 
-	return &DasParser{name: target, file: f, elf: e}
+	return &DasParser{name: target, file: f, elf: e, comment: "#"}
 }
 
 func finishDasParser(p *DasParser) {

@@ -213,7 +213,7 @@ func lookupStrings(comment string, ignoreCode bool) string {
 	offset, err := scv.ParseUint(cmt[0], 16, 64)
 
 	if err != nil {
-		return fmt.Sprintf("%s: %s", comment, err.Error)
+		return comment
 	}
 
 	// some code might be guessed as strings, ignore it
