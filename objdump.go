@@ -97,7 +97,7 @@ func parseFunction(p *DasParser, br *bufio.Reader, name, offset string) *DasFunc
 		//inlined by file/path/name.c:15
 
 		line_arr := str.SplitN(line, ":", 2)
-		insn_arr := str.Split(line_arr[1], "\t")
+		insn_arr := str.SplitN(line_arr[1], "\t", 3)
 
 		if len(insn_arr) > 2 {
 			sym := elf.Symbol{Name: df.name, Value: uint64(df.start)}
