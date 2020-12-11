@@ -210,7 +210,12 @@ func parseStrings(r io.Reader) {
 
 func lookupStrings(comment string, ignoreCode bool) string {
 	cmt := str.Split(comment, " ")
-	offset, err := scv.ParseUint(cmt[0], 16, 64)
+
+	offStr := cmt[0]
+	if str.HasPrefix(offStr, "0x") {
+		offStr = offStr[2:]
+	}
+	offset, err := scv.ParseUint(offStr, 16, 64)
 
 	if err != nil {
 		return comment
@@ -223,7 +228,7 @@ func lookupStrings(comment string, ignoreCode bool) string {
 
 	strconst, ok := strs[offset]
 	if ok {
-		return fmt.Sprintf("%x \"%s\"", offset, strconst)
+		return fmt.Sprintf("%s \"%s\"", cmt[0], strconst)
 	}
 	return comment
 }
