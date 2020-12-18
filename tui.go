@@ -583,6 +583,9 @@ func enter(fv, iv *DasView) {
 
 				t := iv.line[iv.cur].(*DasLine)
 				if t.offset == ln.target {
+					if t.optype == OPTYPE_INFO {
+						down(cv)
+					}
 					break
 				}
 			}
