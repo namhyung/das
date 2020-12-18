@@ -122,8 +122,9 @@ func (o DasOpsX86) parseInsn(insn interface{}, sym *elf.Symbol) *DasLine {
 
 	dl.args = str.TrimSpace(tmp[1])
 
-	if str.Contains(dl.args, "#") {
-		tmp = str.Split(dl.args, "#")
+	// some C++ symbols have '#' in the middle
+	if !str.HasPrefix(dl.mnemonic, "j") && str.Contains(dl.args, "#") {
+		tmp = str.SplitN(dl.args, "#", 2)
 		dl.args = str.TrimSpace(tmp[0])
 
 		// format comment lines
