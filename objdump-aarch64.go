@@ -127,10 +127,10 @@ func (o DasOpsAArch64) parseInsn(insn interface{}, sym *elf.Symbol) *DasLine {
 				}
 
 				if sym := lookupSymbols(adrpOff+off, o.p); sym != "" {
-					dl.args += "  // " + sym
+					dl.comment = fmt.Sprintf("0x%-8x  %s", adrpOff+off, sym)
 				} else {
 					offStr := fmt.Sprintf("0x%x", adrpOff+off)
-					dl.args += fmt.Sprintf("  // %s", lookupStrings(offStr, true))
+					dl.comment = lookupStrings(offStr, true)
 				}
 			}
 		}

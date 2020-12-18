@@ -80,7 +80,7 @@ func updateComment(p *DasParser, dl *DasLine) {
 
 		b := bytes.NewReader(buf)
 		if binary.Read(b, binary.LittleEndian, &val) == nil {
-			dl.comment = fmt.Sprintf("%x  (%f)", ofs, val)
+			dl.comment = fmt.Sprintf("%-8x  (%f)", ofs, val)
 		}
 		return
 	}
@@ -98,7 +98,7 @@ func updateComment(p *DasParser, dl *DasLine) {
 
 		b := bytes.NewReader(buf)
 		if binary.Read(b, binary.LittleEndian, &val) == nil {
-			dl.comment = fmt.Sprintf("%x  (%f)", ofs, val)
+			dl.comment = fmt.Sprintf("%-8x  (%f)", ofs, val)
 		}
 	}
 }
@@ -125,7 +125,10 @@ func (o DasOpsX86) parseInsn(insn interface{}, sym *elf.Symbol) *DasLine {
 	if str.Contains(dl.args, "#") {
 		tmp = str.Split(dl.args, "#")
 		dl.args = str.TrimSpace(tmp[0])
-		dl.comment = str.TrimSpace(tmp[1])
+
+		// format comment lines
+		cmt := str.SplitN(str.TrimSpace(tmp[1]), " ", 2)
+		dl.comment = fmt.Sprintf("%-8s  %s", cmt[0], cmt[1])
 
 		// probably inaccurate symbol
 		if str.Contains(dl.comment, "+0x") {

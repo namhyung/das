@@ -39,6 +39,7 @@ type DasView struct {
 	arrow bool
 	miw   int // max insn width
 	mow   int // max opcode width
+	maw   int // max argument width
 	line  []interface{}
 	msg   func(*DasParser, interface{}) string
 	stat  func(*DasParser, interface{}) string
@@ -125,8 +126,8 @@ func insnMsg(p *DasParser, arg interface{}) string {
 			ls = fmt.Sprintf(" %s %s %s %s(): [%s]",
 				arw, p.comment, str.Repeat(" >>>", dl.indent), dl.mnemonic, desc)
 		} else {
-			ls = fmt.Sprintf(" %s %4x:  %-*s   %s",
-				arw, dl.offset-cv.off, cv.miw, dl.mnemonic, dl.args)
+			ls = fmt.Sprintf(" %s %4x:  %-*s   %-*s",
+				arw, dl.offset-cv.off, cv.miw, dl.mnemonic, cv.maw, dl.args)
 		}
 
 		if len(dl.comment) > 0 {
@@ -230,6 +231,7 @@ func update(dv *DasView) {
 	// update max insn/opcode width
 	dv.miw = 0
 	dv.mow = 0
+	dv.maw = 0
 
 	for _, ln := range dv.line {
 		insn := ln.(*DasLine)
@@ -242,6 +244,10 @@ func update(dv *DasView) {
 		}
 		if len(insn.mnemonic) > dv.miw {
 			dv.miw = len(insn.mnemonic)
+		}
+		// branch can have long C++ symbol names, ignore them
+		if insn.optype != OPTYPE_BRANCH && len(insn.args) > dv.maw {
+			dv.maw = len(insn.args)
 		}
 	}
 }

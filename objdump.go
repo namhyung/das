@@ -228,7 +228,7 @@ func lookupStrings(comment string, ignoreCode bool) string {
 
 	strconst, ok := strs[offset]
 	if ok {
-		return fmt.Sprintf("%s \"%s\"", cmt[0], strconst)
+		return fmt.Sprintf("%-8s  \"%s\"", cmt[0], strconst)
 	}
 	return comment
 }
