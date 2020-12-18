@@ -117,6 +117,24 @@ func (o DasOpsAArch64) parseInsn(insn interface{}, sym *elf.Symbol) *DasLine {
 		}
 	}
 
+	if dl.mnemonic == "cbz" || dl.mnemonic == "cbnz" {
+		dl.optype = OPTYPE_BRANCH
+
+		tmp = str.SplitN(dl.args, " ", 3)
+		if len(tmp) == 3 {
+			dl.target, _ = scv.ParseUint(tmp[1], 16, 64)
+			dl.args = tmp[2]
+
+			// if it's a jump in a same function, just save the offset
+			if str.HasPrefix(dl.args, sym.Name[0:len(sym.Name)-1]) &&
+				(dl.args[len(sym.Name)-1] == '+' ||
+					dl.args[len(sym.Name)-1] == '>') {
+				dl.args = fmt.Sprintf("%s %#x", tmp[0], dl.target-uint64(sym.Value))
+				dl.local = true
+			}
+		}
+	}
+
 	if adrpOff != 0 && (dl.mnemonic == "add" || dl.mnemonic == "ldr" || dl.mnemonic == "str") {
 		if str.Contains(dl.args, adrpReg) {
 			if idx := str.Index(dl.args, "#"); idx > 0 {

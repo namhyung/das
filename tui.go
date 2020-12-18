@@ -11,7 +11,6 @@ import (
 	"fmt"
 	tui "github.com/gizak/termui/v3"
 	"image"
-	scv "strconv"
 	str "strings"
 )
 
@@ -95,16 +94,13 @@ func insnMsg(p *DasParser, arg interface{}) string {
 	if cv.arrow {
 		jmp := cv.line[cv.cur].(*DasLine)
 
-		target, _ := scv.ParseUint(jmp.args, 0, 64)
-		target += cv.off
-
 		if dl.offset == jmp.offset && dl.optype != OPTYPE_INFO {
 			arw = "+--"
-		} else if dl.offset == target && dl.optype != OPTYPE_INFO {
+		} else if dl.offset == jmp.target && dl.optype != OPTYPE_INFO {
 			arw = "+->"
-		} else if jmp.offset < dl.offset && dl.offset <= target {
+		} else if jmp.offset < dl.offset && dl.offset <= jmp.target {
 			arw = "|  "
-		} else if target < dl.offset && dl.offset < jmp.offset {
+		} else if jmp.target < dl.offset && dl.offset < jmp.offset {
 			arw = "|  "
 		}
 	}

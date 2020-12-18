@@ -140,7 +140,7 @@ func (o DasOpsX86) parseInsn(insn interface{}, sym *elf.Symbol) *DasLine {
 		str.HasPrefix(dl.mnemonic, "call") {
 		dl.optype = OPTYPE_BRANCH
 
-		tmp = str.Split(dl.args, " ")
+		tmp = str.SplitN(dl.args, " ", 2)
 		if len(tmp) == 2 {
 			dl.target, _ = scv.ParseUint(tmp[0], 16, 64)
 			dl.args = tmp[1]
