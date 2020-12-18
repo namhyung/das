@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"debug/elf"
+	"encoding/binary"
 	"fmt"
 	scv "strconv"
 	str "strings"
@@ -64,6 +66,43 @@ func describeX86Insn(name, args string) string {
 	return "unknown"
 }
 
+func updateComment(p *DasParser, dl *DasLine) {
+	if dl.mnemonic == "movsd" && str.Contains(dl.args, "%xmm") {
+		cmts := str.Split(dl.comment, " ")
+		ofs, err := scv.ParseInt(cmts[0], 16, 64)
+		if err != nil || (ofs%8) != 0 {
+			return
+		}
+
+		var val float64
+		buf := make([]byte, 8)
+		p.file.ReadAt(buf, ofs)
+
+		b := bytes.NewReader(buf)
+		if binary.Read(b, binary.LittleEndian, &val) == nil {
+			dl.comment = fmt.Sprintf("%x  (%f)", ofs, val)
+		}
+		return
+	}
+
+	if dl.mnemonic == "movss" && str.Contains(dl.args, "%xmm") {
+		cmts := str.Split(dl.comment, " ")
+		ofs, err := scv.ParseInt(cmts[0], 16, 64)
+		if err != nil || (ofs%4) != 0 {
+			return
+		}
+
+		var val float32
+		buf := make([]byte, 4)
+		p.file.ReadAt(buf, ofs)
+
+		b := bytes.NewReader(buf)
+		if binary.Read(b, binary.LittleEndian, &val) == nil {
+			dl.comment = fmt.Sprintf("%x  (%f)", ofs, val)
+		}
+	}
+}
+
 func (o DasOpsX86) parseInsn(insn interface{}, sym *elf.Symbol) *DasLine {
 	dl := new(DasLine)
 
@@ -87,6 +126,11 @@ func (o DasOpsX86) parseInsn(insn interface{}, sym *elf.Symbol) *DasLine {
 		tmp = str.Split(dl.args, "#")
 		dl.args = str.TrimSpace(tmp[0])
 		dl.comment = str.TrimSpace(tmp[1])
+
+		// probably inaccurate symbol
+		if str.Contains(dl.comment, "+0x") {
+			updateComment(o.p, dl)
+		}
 	}
 
 	if str.HasPrefix(dl.mnemonic, "j") ||
