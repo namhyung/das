@@ -19,17 +19,8 @@ var (
 	parsedLines int
 )
 
-func parseFunction(p *DasParser, br *bufio.Reader, name, offset string) *DasFunc {
-	var err error
+func parseFunction(p *DasParser, br *bufio.Reader, df *DasFunc) {
 	var currFunc string
-
-	df := new(DasFunc)
-	df.name = str.TrimSuffix(name, ":\n")
-	df.start, err = scv.ParseUint(offset, 16, 64)
-	if err != nil {
-		log.Println(err)
-		return nil
-	}
 
 	for {
 		line, err := br.ReadString('\n')
@@ -126,19 +117,15 @@ func parseFunction(p *DasParser, br *bufio.Reader, name, offset string) *DasFunc
 			dl.offset = df.insn[i+1].offset
 		}
 	}
-
-	return df
 }
 
 func parseObjdump(p *DasParser, rc io.ReadCloser) {
 	//var filename, format string
-	var line string
-	var err error
 	var printed bool
 
 	br := bufio.NewReader(rc)
 	for {
-		line, err = br.ReadString('\n')
+		line, err := br.ReadString('\n')
 		if err != nil {
 			break
 		}
@@ -161,11 +148,16 @@ func parseObjdump(p *DasParser, rc io.ReadCloser) {
 		case str.HasSuffix(line, ">:\n"):
 			// 00000000004aeba0 <main.main>:
 			func_line := str.SplitN(line, " ", 2)
-			fn := parseFunction(p, br, func_line[1], func_line[0])
-			if fn != nil {
-				csect.start++ // abuse it as function count
-				funcs = append(funcs, fn)
+			fn := new(DasFunc)
+			fn.name = str.TrimRight(func_line[1], ":\n")
+			fn.start, err = scv.ParseUint(func_line[0], 16, 64)
+			if err != nil {
+				log.Println(err)
+				break
 			}
+			csect.start++ // abuse it as function count
+			funcs = append(funcs, fn)
+			parseFunction(p, br, fn)
 			if parsedLines > hugeOutput {
 				fmt.Printf("\rParsing objdump output... %10d lines", parsedLines)
 				printed = true
