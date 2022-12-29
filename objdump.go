@@ -120,7 +120,7 @@ func parseFunction(p *DasParser, br *bufio.Reader, df *DasFunc) {
 	}
 }
 
-func parseObjdump(p *DasParser, rc io.ReadCloser) {
+func parseObjdump(p *DasParser, df *DasFunc, rc io.ReadCloser) {
 	//var filename, format string
 	var printed bool
 
@@ -140,6 +140,12 @@ func parseObjdump(p *DasParser, rc io.ReadCloser) {
 			//file_format := str.Split(line, "file format ")[1]
 		case str.HasPrefix(line, "Disassembly of section"):
 			// Disassembly of section .text:
+			if df != nil {
+				// if it already has 'df', that means it has the
+				// full list of sections and functions.
+				// No need to create a section.
+				break
+			}
 			sect := new(DasFunc)
 			sect.name = str.Split(line, "section ")[1]
 			sect.name = str.TrimRight(sect.name, ":\n")
@@ -148,17 +154,19 @@ func parseObjdump(p *DasParser, rc io.ReadCloser) {
 			csect = sect
 		case str.HasSuffix(line, ">:\n"):
 			// 00000000004aeba0 <main.main>:
-			func_line := str.SplitN(line, " ", 2)
-			fn := new(DasFunc)
-			fn.name = str.TrimRight(func_line[1], ":\n")
-			fn.start, err = scv.ParseUint(func_line[0], 16, 64)
-			if err != nil {
-				log.Println(err)
-				break
+			if df == nil {
+				func_line := str.SplitN(line, " ", 2)
+				df = new(DasFunc)
+				df.name = str.TrimRight(func_line[1], ":\n")
+				df.start, err = scv.ParseUint(func_line[0], 16, 64)
+				if err != nil {
+					log.Println(err)
+					break
+				}
+				csect.start++ // abuse it as function count
+				funcs = append(funcs, df)
 			}
-			csect.start++ // abuse it as function count
-			funcs = append(funcs, fn)
-			parseFunction(p, br, fn)
+			parseFunction(p, br, df)
 			if parsedLines > hugeOutput {
 				fmt.Printf("\rParsing objdump output... %10d lines", parsedLines)
 				printed = true
@@ -170,6 +178,52 @@ func parseObjdump(p *DasParser, rc io.ReadCloser) {
 	if printed {
 		fmt.Println(".  Done.")
 	}
+}
+
+func parseObjdumpFunc(p *DasParser, fn *DasFunc) {
+	var idx int
+	var nextFn *DasFunc
+
+	// find index of current function
+	idx = sort.Search(len(funcs), func(i int) bool {
+		return !funcs[i].sect && funcs[i].start >= fn.start
+	})
+
+	// we actual need next function index
+	idx++
+
+	// find next function (skip sections)
+	for idx < len(funcs) {
+		if !funcs[idx].sect {
+			nextFn = funcs[idx]
+			break
+		}
+		idx++
+	}
+
+	args := []string{"-d", "-C"}
+	if !noInline {
+		args = append(args, "-l", "--inlines")
+	}
+	args = append(args, "--start-address", fmt.Sprintf("0x%x", fn.start))
+	if nextFn != nil {
+		args = append(args, "--stop-address", fmt.Sprintf("0x%x", nextFn.start))
+	}
+	args = append(args, p.name)
+
+	cmd, r, err := runCommand(objdump, args...)
+	if err == nil {
+		parseObjdump(p, fn, r)
+	} else {
+		dl := &DasLine{
+			optype:   OPTYPE_INFO,
+			mnemonic: "ERROR",
+			args:     err.Error(),
+			rawline:  fn.name + ": objdump error: " + err.Error(),
+		}
+		fn.insn = append(fn.insn, dl)
+	}
+	cmd.Wait()
 }
 
 func parseStrings(r io.Reader) {

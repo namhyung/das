@@ -511,7 +511,11 @@ func push(fun *DasFunc, top, cur int, fv, iv *DasView) {
 	iv.Title = fun.name
 
 	if fun.insn == nil {
-		parseCapstoneFunc(iv.dp, fun)
+		if capstone {
+			parseCapstoneFunc(iv.dp, fun)
+		} else {
+			parseObjdumpFunc(iv.dp, fun)
+		}
 	}
 
 	iv.line = make([]interface{}, len(fun.insn))
