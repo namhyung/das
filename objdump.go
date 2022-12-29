@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os/exec"
+	"sort"
 	scv "strconv"
 	str "strings"
 )
@@ -196,6 +197,73 @@ func parseStrings(r io.Reader) {
 		parsedLines++
 		if parsedLines > hugeOutput {
 			fmt.Printf("\rLoading strings in binary.... %10d", parsedLines)
+		}
+	}
+}
+
+type elfFunc struct {
+	name  string
+	start uint64
+	idx   int
+}
+type efSlice []elfFunc
+
+func (fns efSlice) Len() int {
+	return len(fns)
+}
+
+func (fns efSlice) Swap(i, j int) {
+	fns[i], fns[j] = fns[j], fns[i]
+}
+
+func (fns efSlice) Less(i, j int) bool {
+	return fns[i].start < fns[j].start
+}
+
+func initFuncList(p *DasParser) {
+	var funs []elfFunc
+
+	symtab, err := p.elf.Symbols()
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	for _, sym := range symtab {
+		if elf.ST_TYPE(sym.Info) != elf.STT_FUNC {
+			continue
+		}
+
+		if sym.Section == elf.SHN_UNDEF {
+			continue
+		}
+
+		funs = append(funs, elfFunc{name: sym.Name, start: sym.Value, idx: int(sym.Section)})
+	}
+
+	idx := 0
+	sort.Sort(efSlice(funs))
+
+	// iterate functions and inject section
+	for _, fn := range funs {
+		if fn.idx != idx && fn.idx < len(p.elf.Sections) {
+			ds := new(DasFunc)
+			ds.sect = true
+			ds.name = p.elf.Sections[fn.idx].Name
+			funcs = append(funcs, ds)
+
+			csect = ds
+			idx = fn.idx
+		}
+
+		df := new(DasFunc)
+		df.name = "<" + fn.name + ">"
+		df.start = fn.start
+		funcs = append(funcs, df)
+
+		// abuse 'start' of section as a function count
+		if csect != nil {
+			csect.start++
 		}
 	}
 }
