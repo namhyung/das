@@ -128,7 +128,7 @@ func insnMsg(p *DasParser, arg interface{}) string {
 
 		if len(dl.comment) > 0 {
 			ls += fmt.Sprintf("   %s ", p.comment)
-			ls += lookupStrings(p, dl.comment, true)
+			ls += lookupStrings(p, dl.comment)
 		}
 	}
 

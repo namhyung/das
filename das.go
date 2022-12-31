@@ -68,10 +68,9 @@ type DasArchOps interface {
 }
 
 var (
-	funcs      []*DasFunc
-	csect      *DasFunc          // current section
-	strs       map[uint64]string // string table
-	lastOffset uint64            // last code offset
+	funcs []*DasFunc
+	csect *DasFunc          // current section
+	strs  map[uint64]string // string table
 )
 
 var (

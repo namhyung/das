@@ -100,10 +100,6 @@ func parseFunction(p *DasParser, br *bufio.Reader, df *DasFunc) {
 			dl.opcode = insn_arr[1]
 
 			df.insn = append(df.insn, dl)
-
-			if lastOffset < dl.offset {
-				lastOffset = dl.offset
-			}
 		} else {
 			// leftover from the previous insn, append to it
 			if len(df.insn) > 0 {
@@ -366,7 +362,7 @@ func initStrings(p *DasParser) {
 	strs = make(map[uint64]string)
 }
 
-func lookupStrings(p *DasParser, comment string, ignoreCode bool) string {
+func lookupStrings(p *DasParser, comment string) string {
 	cmt := str.Split(comment, " ")
 
 	offStr := cmt[0]
@@ -376,11 +372,6 @@ func lookupStrings(p *DasParser, comment string, ignoreCode bool) string {
 	offset, err := scv.ParseUint(offStr, 16, 64)
 
 	if err != nil {
-		return comment
-	}
-
-	// some code might be guessed as strings, ignore it
-	if ignoreCode && offset <= lastOffset {
 		return comment
 	}
 

@@ -148,7 +148,7 @@ func (o DasOpsAArch64) parseInsn(insn interface{}, sym *elf.Symbol) *DasLine {
 					dl.comment = fmt.Sprintf("0x%-8x  %s", adrpOff+off, sym)
 				} else {
 					offStr := fmt.Sprintf("0x%x", adrpOff+off)
-					dl.comment = lookupStrings(o.p, offStr, true)
+					dl.comment = lookupStrings(o.p, offStr)
 				}
 			}
 		}
