@@ -126,6 +126,15 @@ func insnMsg(p *DasParser, arg interface{}) string {
 				arw, dl.offset-cv.off, cv.miw, dl.mnemonic, cv.maw, dl.args)
 		}
 
+		// vmlinux loads strings directly (not using PC-relative addressing)
+		if len(dl.comment) == 0 && dl.mnemonic == "mov" && str.HasPrefix(dl.args, "$0x") {
+			args := str.Split(dl.args, ",")
+			cmt := lookupStrings(p, args[0][3:]+" dummy")
+			if str.ContainsRune(cmt, '"') {
+				dl.comment = cmt
+			}
+		}
+
 		if len(dl.comment) > 0 {
 			ls += fmt.Sprintf("   %s ", p.comment)
 			ls += lookupStrings(p, dl.comment)
