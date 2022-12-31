@@ -1,3 +1,4 @@
+//go:build !capstone
 // +build !capstone
 
 package main
