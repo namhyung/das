@@ -10,6 +10,8 @@ import (
 	"sort"
 	scv "strconv"
 	str "strings"
+
+	"github.com/ianlancetaylor/demangle"
 )
 
 const (
@@ -311,7 +313,11 @@ func initFuncList(p *DasParser) {
 		}
 
 		df := new(DasFunc)
-		df.name = "<" + fn.name + ">"
+		name, err := demangle.ToString(fn.name)
+		if err != nil {
+			name = fn.name
+		}
+		df.name = "<" + name + ">"
 		df.start = fn.start
 		funcs = append(funcs, df)
 
