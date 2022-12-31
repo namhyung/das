@@ -297,6 +297,53 @@ func initFuncList(p *DasParser) {
 		funs = append(funs, elfFunc{name: sym.Name, start: sym.Value, idx: int(sym.Section)})
 	}
 
+	// add PLT functions seperately as no symbols linked to them
+	for i, sec := range p.elf.Sections {
+		if sec.Name != ".plt" && sec.Name != ".plt.got" {
+			continue
+		}
+
+		args := []string{"-d"}
+		args = append(args, "--start-address", fmt.Sprintf("0x%x", sec.Addr))
+		args = append(args, "--stop-address", fmt.Sprintf("0x%x", sec.Addr+sec.Size))
+		args = append(args, p.name)
+
+		cmd, r, err := runCommand("objdump", args...)
+		if err != nil {
+			continue
+		}
+
+		br := bufio.NewReader(r)
+		for {
+			line, err := br.ReadString('\n')
+			if err != nil {
+				break
+			}
+
+			// 00000000004aeba0 <main.main>:
+			if !str.HasSuffix(line, ">:\n") {
+				continue
+			}
+
+			func_line := str.SplitN(line, " ", 2)
+			// trim < and > in the name
+			name := str.TrimRight(func_line[1], ">:\n")[1:]
+			start, err := scv.ParseUint(func_line[0], 16, 64)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+
+			// first PLT entry has no associated function,
+			// use the section name instead
+			if sec.Name == ".plt" && sec.Addr == start {
+				name = sec.Name
+			}
+			funs = append(funs, elfFunc{name: name, start: start, idx: i})
+		}
+		cmd.Wait()
+	}
+
 	idx := 0
 	sort.Sort(efSlice(funs))
 
