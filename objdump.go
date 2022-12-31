@@ -228,35 +228,6 @@ func parseObjdumpFunc(p *DasParser, fn *DasFunc) {
 	cmd.Wait()
 }
 
-func parseStrings(r io.Reader) {
-	var line string
-	var err error
-	var ofs uint64
-
-	strs = make(map[uint64]string)
-	br := bufio.NewReader(r)
-
-	for {
-		line, err = br.ReadString('\n')
-		if err != nil {
-			break
-		}
-
-		data := str.SplitN(str.TrimSpace(line), " ", 2)
-		if len(data) == 1 {
-			continue
-		}
-
-		ofs, err = scv.ParseUint(data[0], 16, 64)
-		strs[ofs] = data[1]
-
-		parsedLines++
-		if parsedLines > hugeOutput {
-			fmt.Printf("\rLoading strings in binary.... %10d", parsedLines)
-		}
-	}
-}
-
 type elfFunc struct {
 	name  string
 	start uint64
@@ -377,7 +348,25 @@ func initFuncList(p *DasParser) {
 	p.hasFns = true
 }
 
-func lookupStrings(comment string, ignoreCode bool) string {
+func initStrings(p *DasParser) {
+	p.rodata = -1
+
+	// save index and data of rodata section
+	for i, sec := range p.elf.Sections {
+		if sec.Name == ".rodata" {
+			p.rodata = i
+			data, err := sec.Data()
+			if err == nil {
+				p.strs = data
+			}
+			break
+		}
+	}
+
+	strs = make(map[uint64]string)
+}
+
+func lookupStrings(p *DasParser, comment string, ignoreCode bool) string {
 	cmt := str.Split(comment, " ")
 
 	offStr := cmt[0]
@@ -395,9 +384,32 @@ func lookupStrings(comment string, ignoreCode bool) string {
 		return comment
 	}
 
+	// check strs cache first
 	strconst, ok := strs[offset]
 	if ok {
 		return fmt.Sprintf("%-8s  \"%s\"", cmt[0], strconst)
+	}
+
+	if p.rodata != -1 && p.strs != nil {
+		rodata := p.elf.Sections[p.rodata]
+		if rodata.Addr <= offset && offset < (rodata.Addr+rodata.Size) {
+			var sb str.Builder
+
+			for ofs := offset - rodata.Addr; ofs < rodata.Size; ofs++ {
+				c := rune(p.strs[ofs])
+				if !scv.IsPrint(c) {
+					break
+				}
+				sb.WriteRune(c)
+			}
+
+			ret := sb.String()
+			if len(ret) > 3 {
+				// save the result to the cache
+				strs[offset] = ret
+				return fmt.Sprintf("%-8s  \"%s\"", cmt[0], ret)
+			}
+		}
 	}
 	return comment
 }

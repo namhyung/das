@@ -54,6 +54,8 @@ type DasParser struct {
 	file    *os.File
 	elf     *elf.File
 	ops     DasArchOps
+	rodata  int
+	strs    []byte
 	comment string
 	hasFns  bool
 	engine  interface{}
@@ -141,12 +143,7 @@ func main() {
 	} else {
 		setupArchOps(p)
 
-		cmd, r, err := runCommand("strings", "-t", "x", target)
-		if err == nil {
-			parseStrings(r)
-		}
-		cmd.Wait()
-
+		initStrings(p)
 		initFuncList(p)
 
 		if !p.hasFns {
@@ -156,7 +153,7 @@ func main() {
 			}
 			args = append(args, target)
 
-			cmd, r, err = runCommand("objdump", args...)
+			cmd, r, err := runCommand("objdump", args...)
 			if err == nil {
 				parseObjdump(p, nil, r)
 			} else {
