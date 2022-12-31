@@ -9,7 +9,6 @@ package main
 
 import (
 	"debug/elf"
-	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -56,6 +55,7 @@ type DasParser struct {
 	elf     *elf.File
 	ops     DasArchOps
 	comment string
+	hasFns  bool
 	engine  interface{}
 }
 
@@ -147,21 +147,23 @@ func main() {
 		}
 		cmd.Wait()
 
-		if !noInline {
-			cmd, r, err = runCommand(objdump, "-dCl", "--inlines", target)
-		} else {
-			err = errors.New("User wants no-inline")
-		}
+		initFuncList(p)
 
-		if err != nil {
-			cmd, r, err = runCommand(objdump, "-dC", target)
+		if !p.hasFns {
+			args := []string{"-d", "-C"}
+			if !noInline {
+				args = append(args, "-l", "--inlines")
+			}
+			args = append(args, target)
+
+			cmd, r, err = runCommand("objdump", args...)
+			if err == nil {
+				parseObjdump(p, nil, r)
+			} else {
+				log.Fatal(err)
+			}
+			cmd.Wait()
 		}
-		if err == nil {
-			parseObjdump(p, r)
-		} else {
-			log.Fatal(err)
-		}
-		cmd.Wait()
 	}
 
 	ShowTUI(p)

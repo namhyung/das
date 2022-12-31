@@ -169,7 +169,7 @@ func parseObjdump(p *DasParser, df *DasFunc, rc io.ReadCloser) {
 				funcs = append(funcs, df)
 			}
 			parseFunction(p, br, df)
-			if parsedLines > hugeOutput {
+			if !p.hasFns && parsedLines > hugeOutput {
 				fmt.Printf("\rParsing objdump output... %10d lines", parsedLines)
 				printed = true
 			}
@@ -326,6 +326,8 @@ func initFuncList(p *DasParser) {
 			csect.start++
 		}
 	}
+
+	p.hasFns = true
 }
 
 func lookupStrings(comment string, ignoreCode bool) string {
