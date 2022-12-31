@@ -74,16 +74,16 @@ var (
 
 var (
 	// command line options
-	capstone bool
-	objdump  string
-	version  bool
-	noInline bool
+	capstone  bool
+	objdump   string
+	version   bool
+	useInline bool
 )
 
 func init() {
 	flag.BoolVar(&capstone, "c", false, "Use capstone disassembler")
 	flag.StringVar(&objdump, "d", "objdump", "Path to objdump tool")
-	flag.BoolVar(&noInline, "i", false, "Do not use inline info")
+	flag.BoolVar(&useInline, "i", false, "Include inline info")
 	flag.BoolVar(&version, "v", false, "Show version number")
 }
 
@@ -151,7 +151,7 @@ func main() {
 
 		if !p.hasFns {
 			args := []string{"-d", "-C"}
-			if !noInline {
+			if useInline {
 				args = append(args, "-l", "--inlines")
 			}
 			args = append(args, target)

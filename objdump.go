@@ -204,7 +204,7 @@ func parseObjdumpFunc(p *DasParser, fn *DasFunc) {
 	}
 
 	args := []string{"-d", "-C"}
-	if !noInline {
+	if useInline {
 		args = append(args, "-l", "--inlines")
 	}
 	args = append(args, "--start-address", fmt.Sprintf("0x%x", fn.start))

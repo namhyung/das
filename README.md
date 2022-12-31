@@ -14,7 +14,7 @@ Usage
     $ das <program>
       -d string
                 Path to objdump tool (default "objdump")
-      -i        Do not use inline info
+      -i        Use inline info
       -v        Show version number
 
 
