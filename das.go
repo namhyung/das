@@ -1,7 +1,7 @@
 /*
  * DAS - DisASsembler (not for MB)
  *
- * Copyright (C) 2017-2018  Namhyung Kim <namhyung@gmail.com>
+ * Copyright (C) 2017-2022  Namhyung Kim <namhyung@gmail.com>
  *
  * Released under MIT license.
  */
@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	DasVersion string = "v0.2"
+	DasVersion string = "v0.3"
 )
 
 const (

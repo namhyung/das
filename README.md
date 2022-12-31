@@ -1,7 +1,10 @@
 DAS - disassembler
 ==================
 
-DAS is a wrapper of disassembler (`objdump -d`) which support user interactions on terminal.
+DAS is an interactive disassembler inspired by `perf annotate`.  It basically
+wraps the raw disassemly output from `objdump -d` and provides more information
+and functionality like instruction help, jump/call following, string lookup and
+function inlining info.
 
   https://github.com/namhyung/das
 
@@ -39,5 +42,5 @@ If you have golang environment setup:
 
 Or, just download the binary:
 
-    $ wget https://github.com/namhyung/das/releases/download/v0.2/das-linux-amd64
+    $ wget https://github.com/namhyung/das/releases/download/v0.3/das-linux-amd64
     $ sudo install -D das-linux-amd64 /usr/local/bin/das
