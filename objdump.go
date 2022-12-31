@@ -243,6 +243,25 @@ func (fns efSlice) Less(i, j int) bool {
 	return fns[i].start < fns[j].start
 }
 
+func isArmMappingSymbol(p *DasParser, sym *elf.Symbol) bool {
+	if p.elf.Machine != elf.EM_ARM && p.elf.Machine != elf.EM_AARCH64 {
+		return false
+	}
+
+	switch {
+	case str.HasPrefix(sym.Name, "$a"):
+		return true
+	case str.HasPrefix(sym.Name, "$d"):
+		return true
+	case str.HasPrefix(sym.Name, "$t"):
+		return true
+	case str.HasPrefix(sym.Name, "$x"):
+		return true
+	default:
+	}
+	return false
+}
+
 func initFuncList(p *DasParser) {
 	var funs []elfFunc
 
@@ -253,7 +272,18 @@ func initFuncList(p *DasParser) {
 	}
 
 	for _, sym := range symtab {
-		if elf.ST_TYPE(sym.Info) != elf.STT_FUNC {
+		elfType := elf.ST_TYPE(sym.Info)
+
+		if elfType == elf.STT_NOTYPE && !isArmMappingSymbol(p, &sym) {
+			// treat NOTYPE symbol in text sections as FUNC
+			// this is needed for vmlinux
+			if int(sym.Section) < len(p.elf.Sections) &&
+				(p.elf.Sections[sym.Section].Flags&elf.SHF_EXECINSTR) != 0 {
+				elfType = elf.STT_FUNC
+			}
+		}
+
+		if elfType != elf.STT_FUNC {
 			continue
 		}
 
@@ -324,6 +354,12 @@ func initFuncList(p *DasParser) {
 
 			csect = ds
 			idx = fn.idx
+		}
+
+		// skip aliases
+		lastFn := funcs[len(funcs)-1]
+		if fn.start == lastFn.start {
+			continue
 		}
 
 		df := new(DasFunc)
