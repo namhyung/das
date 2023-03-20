@@ -184,10 +184,16 @@ func parseObjdumpFunc(p *DasParser, fn *DasFunc) {
 
 	// find index of current function
 	idx = sort.Search(len(funcs), func(i int) bool {
-		return !funcs[i].sect && funcs[i].start >= fn.start
+		return funcs[i].sect || funcs[i].start >= fn.start
 	})
+	for idx < len(funcs) {
+		if funcs[idx] == fn {
+			break
+		}
+		idx++
+	}
 
-	// we actual need next function index
+	// we actually need an index of the next function
 	idx++
 
 	// find next function (skip sections)
