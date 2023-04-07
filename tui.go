@@ -9,9 +9,12 @@ package main
 
 import (
 	"fmt"
-	tui "github.com/gizak/termui/v3"
 	"image"
+	"os"
+	"path"
 	str "strings"
+
+	tui "github.com/gizak/termui/v3"
 )
 
 const (
@@ -507,6 +510,75 @@ func nextSearch(dv *DasView) {
 	smove = true
 }
 
+func saveScreen(dv *DasView) {
+	y := 0
+
+	if !dv.insn {
+		return
+	}
+
+	prefix := "das"
+	if dv.raw {
+		prefix = "raw"
+	}
+
+	ti := dv.line[dv.top].(*DasLine)
+
+	// filename = <prefix>-<binary>-<function>-<offset>.txt
+	// some Go functions have "/" in the name, use path.Base()
+	// to get the basename of the function (after the final slash)
+	fn := fmt.Sprintf("%s-%s-%s-%x.txt", prefix, path.Base(dv.dp.name),
+		path.Base(dv.Title[1:len(dv.Title)-1]), ti.offset-cv.off)
+
+	f, err := os.Create(fn)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	fmt.Fprintln(f, "# ", dv.Title)
+	for i, dl := range dv.line {
+		if i < dv.top {
+			continue
+		}
+
+		fmt.Fprintln(f, dv.msg(dv.dp, dl))
+
+		y++
+
+		if y == dv.Max.Y-2 {
+			break
+		}
+	}
+}
+
+func saveFullScreen(dv *DasView) {
+	if !dv.insn {
+		return
+	}
+
+	prefix := "das"
+	if dv.raw {
+		prefix = "raw"
+	}
+	// filename = <prefix>-<binary>-<function>-full.txt
+	// some Go functions have "/" in the name, use path.Base()
+	// to get the basename of the function (after the final slash)
+	fn := fmt.Sprintf("%s-%s-%s-full.txt", prefix, path.Base(dv.dp.name),
+		path.Base(dv.Title[1:len(dv.Title)-1]))
+
+	f, err := os.Create(fn)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	fmt.Fprintln(f, "# ", dv.Title)
+	for _, dl := range dv.line {
+		fmt.Fprintln(f, dv.msg(dv.dp, dl))
+	}
+}
+
 // push current function to the history
 func push(fun *DasFunc, top, cur int, fv, iv *DasView) {
 	history = append(history, &DasHist{fun, top, cur, 0, 0})
@@ -812,6 +884,10 @@ func ShowTUI(p *DasParser) {
 			nextSearch(fv)
 		case "p":
 			prevSearch(fv)
+		case "s":
+			saveScreen(cv)
+		case "S":
+			saveFullScreen(cv)
 		default:
 			if !search && cv == fv && e.ID == "/" {
 				sname = "" // clear previous search

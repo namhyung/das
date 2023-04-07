@@ -32,6 +32,7 @@ It supports following keys
  * `/`: search
  * `n`: search next
  * `p`: search previous
+ * `s`/`S`: save screen shot
 
 
 How to install
