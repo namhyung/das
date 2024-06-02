@@ -23,6 +23,8 @@ const (
 	focus
 	special
 	info
+	registerFocus
+	register
 )
 
 type DasView struct {
@@ -31,7 +33,7 @@ type DasView struct {
 	Height int
 	Width  int
 
-	styles [4]tui.Style
+	styles [6]tui.Style
 
 	top   int
 	cur   int
@@ -46,6 +48,7 @@ type DasView struct {
 	msg   func(*DasParser, interface{}) string
 	stat  func(*DasParser, interface{}) string
 	dp    *DasParser
+	reg   string
 }
 
 type DasStatus struct {
@@ -177,6 +180,23 @@ func insnStat(p *DasParser, arg interface{}) string {
 	return describeInsn(p, dl)
 }
 
+func highlightRegister(buf *tui.Buffer, dv *DasView, msg string, st tui.Style, y int) {
+	idx := str.Index(msg, dv.reg)
+	if idx == -1 {
+		buf.SetString(msg, st, image.Pt(1, y))
+		return
+	}
+
+	rst := dv.styles[register]
+	if st == dv.styles[focus] {
+		rst = dv.styles[registerFocus]
+	}
+	len := len(dv.reg)
+	buf.SetString(msg[:idx], st, image.Pt(1, y))
+	buf.SetString(msg[idx:idx+len], rst, image.Pt(1+idx, y))
+	buf.SetString(msg[idx+len:], st, image.Pt(1+idx+len, y))
+}
+
 func (dv *DasView) Draw(buf *tui.Buffer) {
 	// erase entire buffer
 	buf.Fill(tui.NewCell(' ', dv.styles[normal]), dv.GetRect())
@@ -217,7 +237,11 @@ func (dv *DasView) Draw(buf *tui.Buffer) {
 		}
 
 		ls := dv.msg(dv.dp, dl)
-		buf.SetString(ls, st, image.Pt(1, y+1))
+		if dv.reg == "" {
+			buf.SetString(ls, st, image.Pt(1, y+1))
+		} else {
+			highlightRegister(buf, dv, ls, st, y+1)
+		}
 		buf.Fill(tui.NewCell(' ', st), image.Rect(len(ls)+1, y+1, dv.Dx()-1, y+2))
 
 		y++
@@ -579,6 +603,54 @@ func saveFullScreen(dv *DasView) {
 	}
 }
 
+func focusRegister(dv *DasView) {
+	if !dv.insn {
+		return
+	}
+
+	// split line and check '%' sign (maybe different for ARM?)
+	msg := dv.msg(dv.dp, dv.line[dv.cur])
+	if !str.Contains(msg, "%") {
+		dv.reg = ""
+		return
+	}
+
+	// reset the selected register when user moved and it doesn't have the register
+	if dv.reg != "" && !str.Contains(msg, dv.reg) {
+		dv.reg = ""
+	}
+
+	// extrace the list of registers in the current line
+	regs := []string{""}
+	for {
+		idx := str.Index(msg, "%")
+		if idx == -1 {
+			break
+		}
+		end := str.IndexAny(msg[idx:], ",()[]* )")
+		if end == -1 {
+			regs = append(regs, msg[idx:])
+			break
+		}
+		regs = append(regs, msg[idx:idx+end])
+		msg = msg[idx+1:]
+	}
+
+	// rotate/toggle 'reg' to select (nothing -> reg1 -> reg2 -> ...)
+	for i := 0; i < len(regs); i++ {
+		if regs[i] != dv.reg {
+			continue
+		}
+
+		if i == len(regs)-1 {
+			dv.reg = ""
+		} else {
+			dv.reg = regs[i+1]
+		}
+		break
+	}
+}
+
 // push current function to the history
 func push(fun *DasFunc, top, cur int, fv, iv *DasView) {
 	history = append(history, &DasHist{fun, top, cur, 0, 0})
@@ -795,10 +867,12 @@ func ShowTUI(p *DasParser) {
 	}
 	defer tui.Close()
 
-	text_styles := [4]tui.Style{tui.NewStyle(tui.ColorWhite, tui.ColorBlack),
+	text_styles := [6]tui.Style{tui.NewStyle(tui.ColorWhite, tui.ColorBlack),
 		tui.NewStyle(tui.ColorWhite, tui.ColorBlue, tui.ModifierBold),
 		tui.NewStyle(tui.ColorYellow, tui.ColorBlack),
-		tui.NewStyle(tui.ColorGreen, tui.ColorBlack)}
+		tui.NewStyle(tui.ColorGreen, tui.ColorBlack),
+		tui.NewStyle(tui.ColorRed, tui.ColorBlue, tui.ModifierBold),
+		tui.NewStyle(tui.ColorRed, tui.ColorBlack)}
 	title_style := tui.NewStyle(tui.ColorGreen, tui.ColorBlack)
 	status_style := tui.NewStyle(tui.ColorBlack, tui.ColorWhite)
 
@@ -884,6 +958,8 @@ func ShowTUI(p *DasParser) {
 			nextSearch(fv)
 		case "p":
 			prevSearch(fv)
+		case "r":
+			focusRegister(iv)
 		case "s":
 			saveScreen(cv)
 		case "S":

@@ -33,6 +33,7 @@ It supports following keys
  * `n`: search next
  * `p`: search previous
  * `s`/`S`: save screen shot
+ * `r`: focus register
 
 
 How to install
