@@ -201,9 +201,6 @@ func (dv *DasView) Draw(buf *tui.Buffer) {
 	// erase entire buffer
 	buf.Fill(tui.NewCell(' ', dv.styles[normal]), dv.GetRect())
 
-	// draw borders
-	dv.Block.Draw(buf)
-
 	y := 0
 
 	for i, dl := range dv.line {
@@ -250,6 +247,9 @@ func (dv *DasView) Draw(buf *tui.Buffer) {
 			break
 		}
 	}
+
+	// draw borders
+	dv.Block.Draw(buf)
 
 	sl.line = dv.stat(dv.dp, dv.line[dv.cur])
 }
